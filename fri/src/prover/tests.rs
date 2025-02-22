@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, Hasher, MerkleTree, RandomCoin};
 use math::{fft, fields::f128::BaseElement, FieldElement};
+use rand_utils::rand_vector;
 use utils::{Deserializable, Serializable, SliceReader};
 
 use super::{DefaultProverChannel, FriProver};
@@ -38,6 +39,15 @@ fn fri_folding_4() {
     fri_prove_verify(trace_length_e, lde_blowup_e, folding_factor_e, max_remainder_degree)
 }
 
+#[test]
+fn test_fri_prove_verify_random() {
+    let trace_length_e = 20;
+    let lde_blowup_e = 3;
+    let folding_factor_e = 2;
+    let max_remainder_degree = 1 << lde_blowup_e;
+    fri_prove_verify_random(trace_length_e, lde_blowup_e, folding_factor_e, max_remainder_degree)
+}
+
 // TEST UTILS
 // ================================================================================================
 
@@ -51,6 +61,17 @@ pub fn build_prover_channel(
 pub fn build_evaluations(trace_length: usize, lde_blowup: usize) -> Vec<BaseElement> {
     let mut p = (0..trace_length as u128).map(BaseElement::new).collect::<Vec<_>>();
     let domain_size = trace_length * lde_blowup;
+    p.resize(domain_size, BaseElement::ZERO);
+
+    let twiddles = fft::get_twiddles::<BaseElement>(domain_size);
+
+    fft::evaluate_poly(&mut p, &twiddles);
+    p
+}
+
+pub fn build_evaluations_from_random_poly(deg_bound: usize, lde_blowup: usize) -> Vec<BaseElement> {
+    let mut p = rand_vector::<BaseElement>(deg_bound);
+    let domain_size = deg_bound * lde_blowup;
     p.resize(domain_size, BaseElement::ZERO);
 
     let twiddles = fft::get_twiddles::<BaseElement>(domain_size);
@@ -102,6 +123,54 @@ fn fri_prove_verify(
     let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
     let mut channel = build_prover_channel(trace_length, &options);
     let evaluations = build_evaluations(trace_length, lde_blowup);
+
+    // instantiate the prover and generate the proof
+    let mut prover = FriProver::<_, _, _, MerkleTree<Blake3>>::new(options.clone());
+    prover.build_layers(&mut channel, evaluations.clone());
+    let positions = channel.draw_query_positions(0);
+    let proof = prover.build_proof(&positions);
+
+    // make sure the proof can be verified
+    let commitments = channel.layer_commitments().to_vec();
+    let max_degree = trace_length - 1;
+    let result = verify_proof(
+        proof.clone(),
+        commitments.clone(),
+        &evaluations,
+        max_degree,
+        trace_length * lde_blowup,
+        &positions,
+        &options,
+    );
+    assert!(result.is_ok(), "{:}", result.err().unwrap());
+
+    // make sure proof fails for invalid degree
+    let result = verify_proof(
+        proof,
+        commitments,
+        &evaluations,
+        max_degree - 8,
+        trace_length * lde_blowup,
+        &positions,
+        &options,
+    );
+    assert!(result.is_err());
+}
+
+
+fn fri_prove_verify_random(
+    trace_length_e: usize,
+    lde_blowup_e: usize,
+    folding_factor_e: usize,
+    max_remainder_degree: usize,
+) {
+    let trace_length = 1 << trace_length_e;
+    let lde_blowup = 1 << lde_blowup_e;
+    let folding_factor = 1 << folding_factor_e;
+
+    let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
+    let mut channel = build_prover_channel(trace_length, &options);
+    let evaluations = build_evaluations_from_random_poly(trace_length, lde_blowup);
 
     // instantiate the prover and generate the proof
     let mut prover = FriProver::<_, _, _, MerkleTree<Blake3>>::new(options.clone());
