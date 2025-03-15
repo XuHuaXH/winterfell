@@ -61,7 +61,7 @@
 //! * [DEEP-FRI: Sampling Outside the Box Improves Soundness](https://eprint.iacr.org/2019/336)
 //! * Swastik Kooparty's [talk on DEEP-FRI](https://www.youtube.com/watch?v=txo_kPSn59Y&list=PLcIyXLwiPilWvjvNkhMn283LV370Pk5CT&index=6)
 
-// #![no_std]
+#![no_std]
 
 #[macro_use]
 extern crate alloc;
@@ -69,16 +69,25 @@ extern crate alloc;
 pub mod folding;
 
 mod prover;
-pub use prover::{DefaultProverChannel, FriProver, ProverChannel};
+pub use prover::{DefaultProverChannel, FriProver, ProverChannel, FriLayer, build_layer_commitment};
+
+mod batched_prover;
+pub use batched_prover::BatchedFriProver;
 
 mod verifier;
 pub use verifier::{DefaultVerifierChannel, FriVerifier, VerifierChannel};
+
+mod batched_verifier;
+pub use batched_verifier::BatchedFriVerifier;
 
 mod options;
 pub use options::FriOptions;
 
 mod proof;
-pub use proof::FriProof;
+pub use proof::{FriProof, FriProofLayer};
+
+mod batched_proof;
+pub use batched_proof::BatchedFriProof;
 
 mod errors;
 pub use errors::VerifierError;

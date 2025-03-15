@@ -7,7 +7,6 @@ use alloc::vec::Vec;
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, Hasher, MerkleTree, RandomCoin};
 use math::{fft, fields::f128::BaseElement, FieldElement};
-use rand_utils::rand_vector;
 use utils::{Deserializable, Serializable, SliceReader};
 
 use super::{DefaultProverChannel, FriProver};
@@ -69,16 +68,6 @@ pub fn build_evaluations(trace_length: usize, lde_blowup: usize) -> Vec<BaseElem
     p
 }
 
-pub fn build_evaluations_from_random_poly(deg_bound: usize, lde_blowup: usize) -> Vec<BaseElement> {
-    let mut p = rand_vector::<BaseElement>(deg_bound);
-    let domain_size = deg_bound * lde_blowup;
-    p.resize(domain_size, BaseElement::ZERO);
-
-    let twiddles = fft::get_twiddles::<BaseElement>(domain_size);
-
-    fft::evaluate_poly(&mut p, &twiddles);
-    p
-}
 
 pub fn verify_proof(
     proof: FriProof,
@@ -170,7 +159,7 @@ fn fri_prove_verify_random(
 
     let options = FriOptions::new(lde_blowup, folding_factor, max_remainder_degree);
     let mut channel = build_prover_channel(trace_length, &options);
-    let evaluations = build_evaluations_from_random_poly(trace_length, lde_blowup);
+    let evaluations = build_evaluations(trace_length, lde_blowup);
 
     // instantiate the prover and generate the proof
     let mut prover = FriProver::<_, _, _, MerkleTree<Blake3>>::new(options.clone());
