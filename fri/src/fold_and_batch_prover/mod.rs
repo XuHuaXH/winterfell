@@ -14,7 +14,7 @@ use crate::{
 };
 
 mod options;
-pub(crate) use options::FoldingOptions;
+pub use options::FoldingOptions;
 
 
 #[cfg(test)]

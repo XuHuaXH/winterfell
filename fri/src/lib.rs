@@ -61,7 +61,7 @@
 //! * [DEEP-FRI: Sampling Outside the Box Improves Soundness](https://eprint.iacr.org/2019/336)
 //! * Swastik Kooparty's [talk on DEEP-FRI](https://www.youtube.com/watch?v=txo_kPSn59Y&list=PLcIyXLwiPilWvjvNkhMn283LV370Pk5CT&index=6)
 
-// #![no_std]
+#![no_std]
 
 #[macro_use]
 extern crate alloc;
@@ -75,7 +75,7 @@ mod batched_prover;
 pub use batched_prover::BatchedFriProver;
 
 mod fold_and_batch_prover;
-pub use fold_and_batch_prover::FoldingProver;
+pub use fold_and_batch_prover::{FoldingProver, FoldingOptions};
 
 mod verifier;
 pub use verifier::{DefaultVerifierChannel, FriVerifier, VerifierChannel, FoldingVerifierChannel, get_query_values};

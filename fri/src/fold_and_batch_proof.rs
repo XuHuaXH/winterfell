@@ -24,6 +24,12 @@ impl FoldingProof
     pub fn batching_proof(&self) -> FriProofLayer {
         self.folding_proof.last().unwrap().clone()
     }
+
+    // Returns the number of bytes in this folding proof.
+    pub fn size(&self) -> usize {
+        // + 1 for the length of the folding_proof vector
+        self.folding_proof.iter().fold(1, |acc, layer| acc + layer.size())
+    }
 }
 
 pub struct FoldAndBatchProof<H>
@@ -99,39 +105,52 @@ where
         self.master_evaluations.len() / E::ELEMENT_BYTES
     }
 
-    /// Returns the number of bytes in this proof.
-    // pub fn size(&self) -> usize {
+    // Returns the number of bytes in this proof.
+    pub fn size(&self) -> usize {
+
+        // +4 for the length of the folding_proofs vector
+        let folding_proofs_size = self.folding_proofs.iter().fold(4, |acc, folding_proof| acc + folding_proof.size());
     
-    //     let fri_proof_size = self.fri_proof.size();
+        let fri_proof_size = self.fri_proof.size();
 
-    //     // +2 for number of bytes in evaluations
-    //     let evaluations_size = self.evaluations.len() + 2;
+        // +4 for the length of the worker_evaluations vector.
+        // +2 for the length of each vector in worker_evaluations.
+        let worker_evaluations_size = self.worker_evaluations.iter().fold(4, |acc, byte_vec| acc + byte_vec.len() + 2);
 
-    //     // +4 for number of batching proofs
-    //     let batching_proofs_size = self.batching_proofs.iter().fold(4, |acc, layer| acc + layer.size());
+        // +2 for the length of the master_evaluations vector.
+        let master_evaluations_size = self.master_evaluations.len() + 2;
 
-    //     // +1 for number of layer commitments
-    //     let layer_commitments_size = self.layer_commitments.iter().fold(1, |acc, commitment| {
-    //         let commitment_size = commitment.get_size_hint();
-    //         if commitment_size == 0 {
-    //             panic!("The size of a layer commitment is 0");
-    //         }
-    //         acc + commitment_size
-    //         }
-    //     );
+        // +4 for the length of worker_layer_commitments
+        // +2 for the length of each vector in worker_layer_commitments
+        let worker_layer_commitments_size = self.worker_layer_commitments.iter().fold(4, |acc, commitment_vec| {
+            if commitment_vec.len() == 0 {
+                panic!("The length of a worker layer commitments vector is 0");
+            }
+            let commitment_size = commitment_vec[0].get_size_hint();
+            if commitment_size == 0 {
+                panic!("The size of a worker layer commitment is 0");
+            }
+            acc + commitment_size * commitment_vec.len() + 2
+            }
+        );
 
-    //     // +4 for number of function commitments
-    //     let function_commitments_size = self.function_commitments.iter().fold(4, |acc, commitment| {
-    //         let commitment_size = commitment.get_size_hint();
-    //         if commitment_size == 0 {
-    //             panic!("The size of a function commitment is 0");
-    //         }
-    //         acc + commitment_size
-    //         }
-    //     );
+        // +2 for the length of master_layer_commitments
+        if self.master_layer_commitments().len() == 0 {
+            panic!("The length of master layer commitments vector is 0");
+        }
+        let commitment_size = self.master_layer_commitments()[0].get_size_hint();
+        if commitment_size == 0 {
+            panic!("The size of a master layer commitment is 0");
+        }
+        let master_layer_commitments_size = self.master_layer_commitments().len() * commitment_size + 2;
 
-    //     fri_proof_size + evaluations_size + batching_proofs_size + layer_commitments_size + function_commitments_size
-    // }
+        folding_proofs_size + 
+        fri_proof_size + 
+        worker_evaluations_size +
+        master_evaluations_size +
+        worker_layer_commitments_size + 
+        master_layer_commitments_size
+    }
 
 
     // PARSING

@@ -10,7 +10,7 @@ use crypto::{ElementHasher, Hasher, VectorCommitment};
 use math::FieldElement;
 use utils::{group_slice_elements, DeserializationError};
 
-use crate::{fold_and_batch_proof::FoldingProof, FriProof, FriProofLayer, VerifierError};
+use crate::{fold_and_batch_proof::FoldingProof, FriProof, VerifierError};
 
 // VERIFIER CHANNEL TRAIT
 // ================================================================================================
