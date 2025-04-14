@@ -21,8 +21,8 @@ impl FoldingProof
         &self.folding_proof
     }
 
-    pub fn batching_proof(&self) -> FriProofLayer {
-        self.folding_proof.last().unwrap().clone()
+    pub fn batching_proof(&self) -> &FriProofLayer {
+        self.folding_proof.last().unwrap()
     }
 
     // Returns the number of bytes in this folding proof.

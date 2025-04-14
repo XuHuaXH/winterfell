@@ -82,7 +82,7 @@ where
         result
     }
 
-    pub fn verify_batched_fri(&mut self, proof: &BatchedFriProof<H>) -> Result<Vec<usize>, VerifierError> {
+    pub fn verify_batched_fri(&mut self, proof: BatchedFriProof<H>) -> Result<Vec<usize>, VerifierError> {
 
         // Read the function commitments and reseed the random coin.
         for commitment in proof.function_commitments().to_vec() {
@@ -134,7 +134,7 @@ where
         // Read the evaluations of the batched polynomial at the query positions.
         let batched_evaluations = proof.parse_evaluations()?;
 
-        // Verifies the FRI proof.
+        // Verify the FRI proof.
         fri_verifier.verify(&mut channel, &batched_evaluations, &query_positions)?; 
 
         let batching_proofs = proof.batching_proofs().to_vec();
@@ -144,10 +144,10 @@ where
         // Verify that the opening proofs for the batched polynomials are valid against their commitments.
         let function_commitments = proof.function_commitments();
         match folding_factor {
-            2 => self.verify_opening_proofs::<2>(&function_commitments, &queried_values, &opening_proofs, &query_positions)?,
-            4 => self.verify_opening_proofs::<4>(&function_commitments, &queried_values, &opening_proofs, &query_positions)?,
-            8 => self.verify_opening_proofs::<8>(&function_commitments, &queried_values, &opening_proofs, &query_positions)?,
-            16 => self.verify_opening_proofs::<16>(&function_commitments, &queried_values, &opening_proofs, &query_positions)?,
+            2 => self.verify_opening_proofs::<2>(function_commitments, &queried_values, &opening_proofs, &query_positions)?,
+            4 => self.verify_opening_proofs::<4>(function_commitments, &queried_values, &opening_proofs, &query_positions)?,
+            8 => self.verify_opening_proofs::<8>(function_commitments, &queried_values, &opening_proofs, &query_positions)?,
+            16 => self.verify_opening_proofs::<16>(function_commitments, &queried_values, &opening_proofs, &query_positions)?,
             _ => unimplemented!("folding factor {} is not supported", folding_factor),
         }
         
@@ -166,19 +166,21 @@ where
 
     pub fn verify_fold_and_batch(&mut self, proof: &FoldAndBatchProof<H>) -> Result<(), VerifierError> {
         
-        // ------------------- Step 1: Verify the folding proofs ----------------------------------------
+        // ------------------- Step 1: Prepare the folding verifiers ----------------------------------------
         
-        let folding_proofs = proof.folding_proofs().to_vec();
-        let mut folding_verifiers : Vec<FoldingVerifier<E, FoldingVerifierChannel<E, H, V>, H, R, V>> = Vec::with_capacity(folding_proofs.len());
-        let mut folding_verifier_channels = Vec::with_capacity(folding_proofs.len());
+        let folding_proofs = proof.folding_proofs();
+        let num_worker = folding_proofs.len();
+
+        let mut folding_verifiers : Vec<FoldingVerifier<E, FoldingVerifierChannel<E, H, V>, H, R, V>> = Vec::with_capacity(num_worker);
+        let mut folding_verifier_channels = Vec::with_capacity(num_worker);
 
         // For each folding proof, instantiate a FoldingVerifier to verify it.
         let worker_layer_commitments = proof.worker_layer_commitments().to_vec();
-        for (folding_proof, layer_commitment) in folding_proofs.into_iter().zip(worker_layer_commitments.into_iter()) {
+        for (folding_proof, layer_commitments) in folding_proofs.iter().zip(worker_layer_commitments.into_iter()) {
             // Prepare a verifier channal for the FoldingVerifier
             let mut channel = FoldingVerifierChannel::<E, H, V>::new(
                 folding_proof,
-                layer_commitment,
+                layer_commitments,
                 self.worker_domain_size,
                 self.folding_factor(),
             )
@@ -205,11 +207,11 @@ where
         // Extracts the function commitments for the reconstruction of the batched FRI proof later on. 
         // The function commitments are the commitments of the evaluation vectors at the last FRI 
         // layer of each worker node.
-        let num_worker = proof.folding_proofs().len();
         let mut function_commitments : Vec<H::Digest> = Vec::with_capacity(num_worker);
-        for layer_commitments in proof.worker_layer_commitments().iter() {
-            let num_commitments = layer_commitments.len();
-            function_commitments.push(layer_commitments[num_commitments - 1]);
+        for layer_commitments in proof.worker_layer_commitments() {
+
+            // The function commitment of each worker node is the layer commitment of its last FRI layer.
+            function_commitments.push(*layer_commitments.last().expect("Failed to extract the last layer commitment."));
         }
 
         // Reconstruct a batched FRI proof from the FoldAndBatchProof
@@ -223,9 +225,11 @@ where
 
 
         // Verify the batched FRI proof
-        let worker_query_positions = self.verify_batched_fri(&batched_fri_proof)?;
+        let worker_query_positions = self.verify_batched_fri(batched_fri_proof)?;
         
-        // Verify the folding proofs
+            
+        // ------------------- Step 3: Verify the folding proofs ----------------------------------------
+
         let worker_evaluations = proof.parse_worker_evaluations::<E>()?;
         for i in 0..num_worker {
             folding_verifiers[i].verify(&mut folding_verifier_channels[i], &worker_evaluations[i], &worker_query_positions)?

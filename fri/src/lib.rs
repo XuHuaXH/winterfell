@@ -75,7 +75,7 @@ mod batched_prover;
 pub use batched_prover::BatchedFriProver;
 
 mod fold_and_batch_prover;
-pub use fold_and_batch_prover::{FoldingProver, FoldingOptions};
+pub use fold_and_batch_prover::{FoldingProver, FoldingOptions, fold_and_batch_prove, fold_and_batch_worker_commit, fold_and_batch_worker_query};
 
 mod verifier;
 pub use verifier::{DefaultVerifierChannel, FriVerifier, VerifierChannel, FoldingVerifierChannel, get_query_values};

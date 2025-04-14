@@ -11,8 +11,9 @@ use utils::iterators::*;
 pub(crate) mod channel;
 use channel::BatchedFriProverChannel;
 
+use crate::fold_and_batch_proof::FoldingProof;
 use crate::folding::fold_positions;
-use crate::{build_layer_commitment, BatchedFriProof, DefaultProverChannel, FoldAndBatchProof, FoldingProver, FriLayer, FriOptions, FriProofLayer, FriProver};
+use crate::{build_layer_commitment, BatchedFriProof, FoldAndBatchProof, FriLayer, FriOptions, FriProofLayer, FriProver};
 
 #[cfg(test)]
 mod tests;
@@ -180,37 +181,17 @@ where
     }
 
 
-    /// This is the main function used to compute a Fold-and-Batch proof. The variable `inputs` 
-    /// contains all the input evaluation vectors. 
-    /// 
-    /// Returns a Fold-and-Batch proof for the polynomials represented by the input evaluation vectors.
-    pub fn prove_fold_and_batch(
+    /// Execute the batched FRI commit phase for the master prover in the Fold-and-Batch protocol.
+    pub fn fold_and_batch_master_commit(
         &mut self,
-        inputs: &Vec<Vec<E>>, 
         worker_domain_size: usize, 
-        master_domain_size: usize, 
         num_queries: usize, 
-        worker_nodes: &mut Vec<FoldingProver::<E, DefaultProverChannel<E, H, R>, H, V>>,
-    ) -> FoldAndBatchProof<H>
+        worker_layer_commitments: &Vec<Vec<<H as Hasher>::Digest>>,
+        batched_fri_inputs: Vec<Vec<E>>
+    ) -> (Vec<E>, Vec<usize>)
     {
+
         // -------------------------------- Step 1 ---------------------------------------------
-        // Each worker node executes the FRI commit phase on their local input polynomial.
-        let num_worker = worker_nodes.len();
-        let mut worker_layer_commitments = Vec::with_capacity(num_worker);
-        let mut batched_fri_inputs = Vec::with_capacity(num_worker);
-        for (i, node) in worker_nodes.iter_mut().enumerate() {
-
-            // Prepare a ProverChannel for the worker node
-            let mut worker_channel = DefaultProverChannel::<E, H, R>::new(worker_domain_size, num_queries);
-            
-            // Execute the commit phase for the worker node.
-            let last_eval_vector = node.build_layers(&mut worker_channel, inputs[i].clone());
-            batched_fri_inputs.push(last_eval_vector);
-            worker_layer_commitments.push(worker_channel.layer_commitments().to_vec());
-        }
-
-
-        // -------------------------------- Step 2 ---------------------------------------------
         // The master prover reads the last layer commitments of each worker node into its channel.
         // These layer commitments correspond to the function commitments in batched FRI.
         for layer_commitments in worker_layer_commitments.iter() {
@@ -218,19 +199,19 @@ where
         }
 
 
-        // -------------------------------- Step 3 ---------------------------------------------
+        // -------------------------------- Step 2 ---------------------------------------------
         // Batch the input evaluation vectors into a single evaluation vector using the batched 
         // FRI challenge obtained from Fiat-Shamir.
         let challenge = self.channel.draw_batched_fri_challange();
         let batched_evaluations = combine_poly_evaluations(&batched_fri_inputs, challenge);
 
 
-        // -------------------------------- Step 4 ---------------------------------------------
-        // The master node performs the FRI folding phase on the batched polynomial.
+        // -------------------------------- Step 3 ---------------------------------------------
+        // The master node performs the FRI commit phase on the batched polynomial.
         self.fri_prover.build_layers(&mut self.channel, batched_evaluations.clone());
 
 
-        // -------------------------------- Step 5 ---------------------------------------------
+        // -------------------------------- Step 4 ---------------------------------------------
         // Sample the query positions using Fiat-Shamir.
         // TODO: consider using grinding?
         let mut query_positions = self.channel.draw_query_positions(worker_domain_size, num_queries, 0);
@@ -240,20 +221,23 @@ where
         query_positions.sort_unstable();
         query_positions.dedup();
 
-
-        // -------------------------------- Step 6 ---------------------------------------------
-        // Each worker node generates the FRI folding proof proving that the folding of its local 
-        // polynomial was done correctly.
-        let mut folding_proofs = Vec::with_capacity(num_worker);
-        let mut worker_evaluations = Vec::with_capacity(num_worker);
-        for i in 0..num_worker {
-            let (folding_proof, evaluation_vector) = worker_nodes[i].build_proof(&inputs[i], &query_positions);
-            folding_proofs.push(folding_proof);
-            worker_evaluations.push(evaluation_vector);
-        }
+        (batched_evaluations, query_positions)
+    }
 
 
-        // -------------------------------- Step 7 ---------------------------------------------
+    /// Execute the batched FRI query phase for the master prover in the Fold-and-Batch protocol.
+    pub fn fold_and_batch_master_query(
+        &mut self,
+        worker_domain_size: usize, 
+        master_domain_size: usize, 
+        worker_layer_commitments: Vec<Vec<<H as Hasher>::Digest>>,
+        mut query_positions: Vec<usize>,
+        folding_proofs: Vec<FoldingProof>,
+        worker_evaluations: Vec<Vec<E>>,
+        batched_evaluations: Vec<E>
+    ) -> FoldAndBatchProof<H>
+    {
+
         // Fold the initial query positions to the folded positions at the last FRI layer
         // of a worker node.
         let folding_factor = self.folding_factor();
@@ -262,10 +246,6 @@ where
             query_positions = fold_positions(&query_positions, current_domain_size, folding_factor);
             current_domain_size /= folding_factor;
         }
-
-
-        // -------------------------------- Step 8 ---------------------------------------------
-        // Build the Fold-and-Batch proof.
 
         let fri_proof = self.fri_prover.build_proof(&query_positions);
         let master_evaluations = query_positions.iter().map(|&p| batched_evaluations[p]).collect::<Vec<_>>();
@@ -280,7 +260,7 @@ where
             master_evaluations, 
             worker_layer_commitments,
             master_layer_commitments
-            )
+        )
     }
 }
 

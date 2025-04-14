@@ -28,7 +28,19 @@ name = "fold_and_batch_folding"
 harness = false
 
 [[bench]]
+name = "fold_and_batch_master"
+harness = false
+
+[[bench]]
 name = "fold_and_batch_verify"
+harness = false
+
+[[bench]]
+name = "parallel_fri_prover"
+harness = false
+
+[[bench]]
+name = "parallel_fri_verify"
 harness = false
 
 [features]

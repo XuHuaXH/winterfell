@@ -1,8 +1,8 @@
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use crypto::{ElementHasher, VectorCommitment};
-use math::FieldElement;
+use crypto::{ElementHasher, RandomCoin, VectorCommitment};
+use math::{fft, FieldElement, StarkField};
 #[cfg(feature = "concurrent")]
 use utils::iterators::*;
 use utils::{
@@ -10,7 +10,7 @@ use utils::{
 };
 
 use crate::{
-    build_layer_commitment, fold_and_batch_proof::FoldingProof, folding::{apply_drp, fold_positions}, prover::query_layer, FriLayer, ProverChannel
+    build_layer_commitment, fold_and_batch_proof::FoldingProof, folding::{apply_drp, fold_positions}, prover::query_layer, BatchedFriProver, DefaultProverChannel, FoldAndBatchProof, FriLayer, FriOptions, ProverChannel
 };
 
 mod options;
@@ -29,7 +29,6 @@ where
     H: ElementHasher<BaseField = E::BaseField>,
     V: VectorCommitment<H>,
 {
-    domain_size: usize,
     options: FoldingOptions,
     layers: Vec<FriLayer<E, H, V>>,
     _channel: PhantomData<C>,
@@ -48,9 +47,8 @@ where
     // CONSTRUCTOR
     // --------------------------------------------------------------------------------------------
     /// Returns a new FoldingProver instantiated with the provided `domain_size` and `options`.
-    pub fn new(domain_size: usize, options: FoldingOptions) -> Self {
+    pub fn new(options: FoldingOptions) -> Self {
         FoldingProver {
-            domain_size,
             options,
             layers: Vec::new(),
             _channel: PhantomData,
@@ -62,7 +60,7 @@ where
 
     /// Returns the domain size for this prover.
     pub fn domain_size(&self) -> usize {
-        self.domain_size
+        self.options.domain_size()
     }
 
     /// Returns folding factor for this prover.
@@ -156,8 +154,7 @@ where
         self.layers.push(
             FriLayer::new(
                 evaluation_vector_commitment, 
-                // flatten_vector_elements(transposed_evaluations)
-                flatten_vector_elements(transposed_evaluations.clone())
+                flatten_vector_elements(transposed_evaluations)
             ));
     }
 
@@ -207,4 +204,137 @@ where
 
         (FoldingProof::new(layers), evaluation_vector)
     } 
+}
+
+
+pub fn fold_and_batch_worker_commit<E, H, R, V>(
+    inputs: &Vec<Vec<E>>,
+    num_poly: usize,
+    lde_blowup: usize,
+    folding_factor: usize,
+    worker_domain_size: usize,
+    worker_last_poly_max_degree: usize,
+    num_queries: usize
+) -> (Vec<FoldingProver<E, DefaultProverChannel<E, H, R>, H, V>>, Vec<Vec<H::Digest>>, Vec<Vec<E>>)
+where 
+    E: FieldElement + StarkField,
+    H: ElementHasher<BaseField = E::BaseField>,
+    R: RandomCoin<BaseField = E::BaseField, Hasher = H>,
+    V: VectorCommitment<H>,
+{
+
+     // Instantiate the worker nodes.
+     let mut worker_nodes = Vec::with_capacity(num_poly);
+     let worker_options = FoldingOptions::new(lde_blowup, folding_factor, worker_domain_size, worker_last_poly_max_degree);
+     for _ in 0..num_poly {
+         worker_nodes.push(FoldingProver::<E, DefaultProverChannel<E, H, R>, H, V>::new(worker_options.clone()));
+     }
+
+    // Each worker node executes the FRI commit phase on their local input polynomial.
+    let num_worker = worker_nodes.len();
+    let mut worker_layer_commitments = Vec::with_capacity(num_worker);
+    let mut batched_fri_inputs = Vec::with_capacity(num_worker);
+    for (i, node) in worker_nodes.iter_mut().enumerate() {
+
+        // Prepare a ProverChannel for the worker node
+        let mut worker_channel = DefaultProverChannel::<E, H, R>::new(worker_domain_size, num_queries);
+        
+        // Execute the commit phase for the worker node.
+        let last_eval_vector = node.build_layers(&mut worker_channel, inputs[i].clone());
+        batched_fri_inputs.push(last_eval_vector);
+        worker_layer_commitments.push(worker_channel.layer_commitments().to_vec());
+    }
+
+    (worker_nodes, worker_layer_commitments, batched_fri_inputs)
+}
+
+pub fn fold_and_batch_worker_query<E, H, V, R>(
+    inputs: &Vec<Vec<E>>,
+    worker_nodes: &mut Vec<FoldingProver<E, DefaultProverChannel<E, H, R>, H, V>>,
+    query_positions: &[usize],
+) -> (Vec<FoldingProof>, Vec<Vec<E>>) 
+where 
+    E: FieldElement + StarkField,
+    H: ElementHasher<BaseField = E::BaseField>,
+    R: RandomCoin<BaseField = E::BaseField, Hasher = H>,
+    V: VectorCommitment<H>,
+{
+    let num_worker = worker_nodes.len();
+    let mut folding_proofs = Vec::with_capacity(num_worker);
+    let mut worker_evaluations = Vec::with_capacity(num_worker);
+    for i in 0..num_worker {
+        let (folding_proof, evaluation_vector) = worker_nodes[i].build_proof(&inputs[i], &query_positions);
+        folding_proofs.push(folding_proof);
+        worker_evaluations.push(evaluation_vector);
+    }
+    (folding_proofs, worker_evaluations)
+}
+
+
+pub fn fold_and_batch_prove<E, H, R, V>(
+    inputs: Vec<Vec<E>>,
+    num_poly: usize, 
+    lde_blowup: usize,
+    folding_factor: usize,
+    worker_domain_size: usize,
+    worker_last_poly_max_degree: usize,
+    master_domain_size: usize,
+    master_options: FriOptions,
+    num_queries: usize
+) -> FoldAndBatchProof<H> 
+where 
+    E: FieldElement + StarkField,
+    H: ElementHasher<BaseField = E::BaseField>,
+    R: RandomCoin<BaseField = E::BaseField, Hasher = H>,
+    V: VectorCommitment<H>,
+{
+
+    // ------------------------ Step 1: worker commit phase --------------------------
+    // Each worker node executes the FRI commit phase on their local input polynomial.
+
+    let (mut worker_nodes, worker_layer_commitments, batched_fri_inputs) = 
+    fold_and_batch_worker_commit(
+        &inputs, 
+        num_poly, 
+        lde_blowup, 
+        folding_factor, 
+        worker_domain_size, 
+        worker_last_poly_max_degree, 
+        num_queries
+    );
+  
+
+    // ------------------------ Step 2: master commit phase ----------------------------
+    // The master prover executes the commit phase of batched FRI and produces the query
+    // positions using Fiat-Shamir.
+
+    // Instantiate the master prover.
+    let mut master_prover = BatchedFriProver::<E, H, V, R>::new(master_options);
+
+    let (batched_evaluations, query_positions) = master_prover.fold_and_batch_master_commit(
+        worker_domain_size, 
+        num_queries, 
+        &worker_layer_commitments,
+        batched_fri_inputs);
+
+    
+    // -------------------------- Step 3: worker query phase --------------------------------
+    // Each worker node generates the FRI folding proof proving that the folding of its local 
+    // polynomial was done correctly.
+    let (folding_proofs, worker_evaluations) = 
+        fold_and_batch_worker_query::<E, H, V, R>(&inputs, &mut worker_nodes, &query_positions);
+
+
+    // -------------------------- Step 4: master query phase --------------------------------
+    // The master node executes the batched FRI query phase and assembles the Fold-and-Batch proof.
+    let fold_and_batch_proof = master_prover.fold_and_batch_master_query(
+        worker_domain_size, 
+        master_domain_size, 
+        worker_layer_commitments,
+        query_positions,
+        folding_proofs, 
+        worker_evaluations,
+        batched_evaluations);
+
+    fold_and_batch_proof
 }

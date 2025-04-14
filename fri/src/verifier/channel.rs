@@ -230,7 +230,7 @@ where
     /// # Errors
     /// Returns an error if the specified `proof` could not be parsed correctly.
     pub fn new(
-        folding_proof: FoldingProof,
+        folding_proof: &FoldingProof,
         layer_commitments: Vec<H::Digest>,
         domain_size: usize,
         folding_factor: usize,
