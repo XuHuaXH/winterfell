@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
 use math::{fields::f128::BaseElement, FieldElement};
-use winter_fri::{fold_and_batch_worker_commit, fold_and_batch_worker_query, BatchedFriProver, FriOptions};
+use winter_fri::{fold_and_batch_master_commit, fold_and_batch_master_query, fold_and_batch_worker_commit, fold_and_batch_worker_query, BatchedFriProver, DefaultProverChannel, FriOptions, FriProver};
 use std::io::Write;
 use std::{fs::File, hint::black_box};
 use std::mem::size_of;
@@ -28,9 +28,8 @@ pub fn fold_and_batch_master(c: &mut Criterion) {
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
             let worker_domain_size = worker_degree_bound * BLOWUP_FACTOR;
 
-            // let worker_last_poly_max_degree = 0;
-            let worker_last_poly_max_degree = worker_degree_bound / 4;
-            // let worker_last_poly_max_degree = worker_degree_bound - 1;
+            let worker_last_poly_max_degree = worker_degree_bound / 4 - 1;  // parameter for Fold-and-Batch
+            // let worker_last_poly_max_degree = worker_degree_bound - 1;   // parameter for Distributed Batched FRI
 
             let master_degree_bound : usize = worker_last_poly_max_degree + 1;
             let master_domain_size = master_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
@@ -104,11 +103,12 @@ pub fn fold_and_batch_master(c: &mut Criterion) {
                 |b| {
                     b.iter_batched(
                         || {
-                            // Instantiate the master prover.
-                            BatchedFriProver::<BaseElement, Blake3, MerkleTree<_>, DefaultRandomCoin<_>>::new(master_options.clone())
-                        
+                            // Instantiate the master prover and its prover channel.
+                            let master_prover = FriProver::<BaseElement, DefaultProverChannel<BaseElement, Blake3, DefaultRandomCoin<_>>, Blake3, MerkleTree<_>>::new(master_options.clone());
+                            let master_prover_channel = DefaultProverChannel::new(master_domain_size, NUM_QUERIES);
+                            (master_prover, master_prover_channel)
                         },
-                        |mut master_prover| {
+                        |(mut master_prover, mut master_prover_channel)| {
 
                             // In the actual Fold-and-Batch protocol, the worker nodes execute 
                             // the query phase in between the commit and query phase of the master prover. 
@@ -117,13 +117,17 @@ pub fn fold_and_batch_master(c: &mut Criterion) {
                             // getting them from Fiat-Shamir. The FoldAndBatchProof produced this way will be 
                             // incorrect, but the computations performed will be similar to those in realistic 
                             // scenarios.
-                            let (batched_evaluations, _) = black_box(master_prover.fold_and_batch_master_commit(
-                                worker_domain_size, 
-                                NUM_QUERIES, 
+                            let (batched_evaluations, _) = black_box(fold_and_batch_master_commit(
+                                &mut master_prover,
+                                &mut master_prover_channel,
                                 &worker_layer_commitments,
-                                batched_fri_inputs.clone()));
+                                batched_fri_inputs.clone(),
+                                NUM_QUERIES,
+                                worker_domain_size));
 
-                            let _ = black_box(master_prover.fold_and_batch_master_query(
+                            let _ = black_box(fold_and_batch_master_query(
+                                &mut master_prover, 
+                                &master_prover_channel,
                                 worker_domain_size, 
                                 master_domain_size, 
                                 worker_layer_commitments.clone(),

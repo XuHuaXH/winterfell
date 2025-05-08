@@ -1,12 +1,12 @@
 use alloc::vec::Vec;
 
-use crypto::{hashers::Blake3_256, DefaultRandomCoin, ElementHasher, MerkleTree, RandomCoin, VectorCommitment};
+use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
 use math::{fft, fields::f128::BaseElement, FieldElement, StarkField};
 use rand_utils::rand_vector;
 use utils::{Deserializable, Serializable, SliceReader};
 
 use crate::{
-    fold_and_batch_prover::fold_and_batch_prove, fold_and_batch_worker_commit, fold_and_batch_worker_query, verifier::DefaultVerifierChannel, BatchedFriProver, DefaultProverChannel, FoldAndBatchProof, FoldAndBatchVerifier, FriOptions, VerifierError
+    fold_and_batch_prover::fold_and_batch_prove, verifier::DefaultVerifierChannel, DefaultProverChannel, FoldAndBatchProof, FoldAndBatchVerifier, FriOptions, VerifierError
 };
 
 use super::{FoldingOptions, FoldingProver};
@@ -15,6 +15,7 @@ type Blake3 = Blake3_256<BaseElement>;
 
 // PROVE/VERIFY TEST
 // ================================================================================================
+
 
 #[test]
 fn test_fold_and_batch_single_poly() {
@@ -99,6 +100,27 @@ fn test_fold_and_batch_worker_complete_folding() {
 }
 
 
+#[test]
+fn test_fold_and_batch_worker_folds_twice() {
+    let degree_bound_e = 12;
+    let lde_blowup_e = 2;
+    let folding_factor_e = 1;
+    let worker_last_poly_max_degree = ((1 << degree_bound_e) / 4) - 1;
+    let master_max_remainder_degree = 0;
+    let num_polys = 1;
+    let num_queries = 50;
+
+    let result = fold_and_batch_prove_verify_random(
+        degree_bound_e, 
+        lde_blowup_e, 
+        folding_factor_e, 
+        worker_last_poly_max_degree, 
+        master_max_remainder_degree,
+        num_polys, 
+        num_queries);
+    assert!(result.is_ok(), "{:}", result.err().unwrap()); 
+}
+
 
 // TEST UTILS
 // ================================================================================================
@@ -137,7 +159,7 @@ fn fold_and_batch_worker_prove(
     let folding_factor = 1 << folding_factor_e;
     let worker_domain_size = lde_blowup * worker_degree_bound;
 
-    // Generates the evaluation vector of a random polynomial with degree < worker_degree_bound.
+    // Generates a random input evaluation vector.
     let inputs = build_evaluations_from_random_poly(worker_degree_bound, lde_blowup);
 
     // Prepare the query positions. For simplicity, we draw some random integers 
@@ -172,8 +194,7 @@ fn fold_and_batch_worker_prove(
 
 
 
-/// Generates a random Fold-and-Batch instance and test the prove/verify functionality 
-/// for Fold-and-Batch.
+/// Generates a random Fold-and-Batch instance and test the prove/verify functionality.
 /// 
 /// `num_polys` is the number of polynomials to be batched in batched FRI. It is equal to 
 /// the number of worker nodes.
@@ -200,7 +221,7 @@ fn fold_and_batch_prove_verify_random(
 
     assert!(worker_last_poly_max_degree >= master_remainder_max_degree, "The maximum degree for the worker node's last polynomial must be greater than or equal to the max remainder degree of the master node");
 
-    // Generates evaluation vectors of random polynomials with degree < worker_degree_bound.
+    // Generate some random input evaluation vectors.
     let mut inputs = Vec::with_capacity(num_poly);
     for _ in 0..num_poly {
         inputs.push(build_evaluations_from_random_poly(worker_degree_bound, lde_blowup));

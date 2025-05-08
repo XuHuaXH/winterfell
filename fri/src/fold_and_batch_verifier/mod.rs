@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use crypto::{ElementHasher, RandomCoin, VectorCommitment};
+use crypto::{DefaultRandomCoin, ElementHasher, RandomCoin, VectorCommitment};
 use math::FieldElement;
 use utils::group_slice_elements;
 
@@ -82,18 +82,24 @@ where
         result
     }
 
-    pub fn verify_batched_fri(&mut self, proof: BatchedFriProof<H>) -> Result<Vec<usize>, VerifierError> {
+    /// This method is used to verify the batched FRI proof in a FoldAndBatchedProof. The verification 
+    /// procedure is different from the verification of a standalone batched FRI proof in that the 
+    /// verifier must first read all the layer commitments from the worker nodes before deriving the
+    /// batched FRI challenge.
+    pub fn verify_batched_fri(&mut self, proof: BatchedFriProof<H>, worker_layer_commitments: Vec<Vec<H::Digest>>) -> Result<Vec<usize>, VerifierError> {
 
-        // Read the function commitments and reseed the random coin.
-        for commitment in proof.function_commitments().to_vec() {
-            self.public_coin.reseed(commitment);
+        // Read the worker layer commitments and reseed the random coin.
+        for commitments_vec in worker_layer_commitments {
+            for commitment in commitments_vec {
+                self.public_coin.reseed(commitment);
+            }
         }
 
         // Draw the batched FRI challenge.
-        let batched_fri_challenge: E = self.public_coin.draw().expect("Batched FRI verifier failed to draw batched FRI challenge.");
+        let batched_fri_challenge: E = self.public_coin.draw().expect("The Fold and Batch verifier failed to draw the batched FRI challenge.");
 
         // Prepare the verifier channel for the FRI verifier.
-        let mut channel = DefaultVerifierChannel::<E, H, V>::new(
+        let mut fri_verifier_channel = DefaultVerifierChannel::<E, H, V>::new(
             proof.fri_proof().clone(),
             proof.layer_commitments().to_vec(),
             self.master_domain_size,
@@ -101,11 +107,12 @@ where
         ).unwrap();
 
         let fri_verifier = FriVerifier::new(
-            &mut channel, 
+            &mut fri_verifier_channel, 
             &mut self.public_coin, 
             self.options.clone(), 
             self.master_degree_bound - 1
         )?;
+
 
         // Sample the query positions using Fiat-Shamir. Since these are the query positions
         // used for Fold-and-Batch, we draw the queries from the range [0, worker_domain_size). 
@@ -132,16 +139,16 @@ where
         }
 
         // Read the evaluations of the batched polynomial at the query positions.
-        let batched_evaluations = proof.parse_evaluations()?;
+        let queried_evaluations = proof.parse_evaluations()?;
 
         // Verify the FRI proof.
-        fri_verifier.verify(&mut channel, &batched_evaluations, &query_positions)?; 
+        fri_verifier.verify(&mut fri_verifier_channel, &queried_evaluations, &query_positions)?; 
 
         let batching_proofs = proof.batching_proofs().to_vec();
         let folding_factor = self.folding_factor();
         let (queried_values, opening_proofs) = self.parse_batching_proofs(batching_proofs)?;
 
-        // Verify that the opening proofs for the batched polynomials are valid against their commitments.
+        // Verify that the opening proofs for the worker witness polynomials are valid against their commitments.
         let function_commitments = proof.function_commitments();
         match folding_factor {
             2 => self.verify_opening_proofs::<2>(function_commitments, &queried_values, &opening_proofs, &query_positions)?,
@@ -151,10 +158,10 @@ where
             _ => unimplemented!("folding factor {} is not supported", folding_factor),
         }
         
-        // Verify that the random linear combination using batched_fri_challenge was computed correctly.
+        // Verify that the random linear combination using batched fri challenge was computed correctly.
         verify_batching(
             &query_positions, 
-            &batched_evaluations, 
+            &queried_evaluations, 
             &queried_values, 
             batched_fri_challenge, 
             self.master_domain_size, 
@@ -164,7 +171,7 @@ where
     }
 
 
-    pub fn verify_fold_and_batch(&mut self, proof: &FoldAndBatchProof<H>) -> Result<(), VerifierError> {
+    pub fn verify_fold_and_batch(&mut self, proof: &FoldAndBatchProof<E, H>) -> Result<(), VerifierError> {
         
         // ------------------- Step 1: Prepare the folding verifiers ----------------------------------------
         
@@ -205,34 +212,33 @@ where
         // ------------------- Step 2: Verify the batched FRI proof ----------------------------------------
 
         // Extracts the function commitments for the reconstruction of the batched FRI proof later on. 
-        // The function commitments are the commitments of the evaluation vectors at the last FRI 
-        // layer of each worker node.
+        // The function commitments are the commitments of the evaluation vectors at the worker nodes'
+        // last FRI layers.
         let mut function_commitments : Vec<H::Digest> = Vec::with_capacity(num_worker);
-        for layer_commitments in proof.worker_layer_commitments() {
+        for commitments_vec in proof.worker_layer_commitments() {
 
             // The function commitment of each worker node is the layer commitment of its last FRI layer.
-            function_commitments.push(*layer_commitments.last().expect("Failed to extract the last layer commitment."));
+            function_commitments.push(*commitments_vec.last().expect("Failed to extract the last layer commitment."));
         }
 
         // Reconstruct a batched FRI proof from the FoldAndBatchProof
-        let batching_proofs : Vec<FriProofLayer> = proof.folding_proofs().iter().map(|folding_proof| folding_proof.batching_proof().clone()).collect();
+        let batching_proofs : Vec<FriProofLayer> = folding_proofs.iter().map(|folding_proof| folding_proof.batching_proof().clone()).collect();
         let batched_fri_proof : BatchedFriProof<H> = BatchedFriProof::new(
             proof.fri_proof().clone(), 
-            proof.parse_master_evaluations::<E>()?, 
+            proof.master_evaluations().to_vec(), 
             batching_proofs, 
             proof.master_layer_commitments().to_vec(), 
             function_commitments);
 
 
         // Verify the batched FRI proof
-        let worker_query_positions = self.verify_batched_fri(batched_fri_proof)?;
+        let worker_query_positions = self.verify_batched_fri(batched_fri_proof, proof.worker_layer_commitments().to_vec())?;
         
             
         // ------------------- Step 3: Verify the folding proofs ----------------------------------------
 
-        let worker_evaluations = proof.parse_worker_evaluations::<E>()?;
         for i in 0..num_worker {
-            folding_verifiers[i].verify(&mut folding_verifier_channels[i], &worker_evaluations[i], &worker_query_positions)?
+            folding_verifiers[i].verify(&mut folding_verifier_channels[i], &proof.worker_evaluations()[i], &worker_query_positions)?
         }
 
         Ok(())

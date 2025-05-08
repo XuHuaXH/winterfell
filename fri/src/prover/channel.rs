@@ -110,6 +110,34 @@ where
             .expect("failed to draw query position")
     }
 
+    /// Reseed the public coin with all the worker layer commitments without storing these
+    /// commitments into the commitments field of the channel. This method is used by the master
+    /// prover in Fold-and-Batch. In Fold-and-Batch, the master prover needs to read in all worker
+    /// layer commitments before drawing the batched FRI challenge via Fiat-Shamir. However, the 
+    /// prover's channel commitments should only store master layer commitments. Thus, we want
+    /// the master prover to update its internal seed with these worker layer commitments without 
+    /// storing them in the channel.
+    pub fn read_worker_commitments_fold_and_batch(&mut self, worker_layer_commitments: Vec<Vec<H::Digest>>) {
+        for commitment_vec in worker_layer_commitments {
+            for commitment in commitment_vec {
+                self.public_coin.reseed(commitment);
+            }
+        }
+    } 
+
+    /// Draws a set of positions at which the polynomial evaluations committed at the first FRI
+    /// layers of the worker nodes should be queried in Fold-and-Batch. In Fold-and-Batch, the 
+    /// master prover (a [crate::FriProver]) draws the FRI query positions used by all provers.
+    /// However, the query positions must be drawn from the domain of the worker nodes instead 
+    /// of the domain of the master prover. The query positions used by the master prover are 
+    /// then obtained by folding the query positions of the worker nodes. The number of foldings
+    /// is the same as the number of times the worker nodes fold their evaluation vectors.
+    pub fn draw_query_positions_fold_and_batch(&mut self, num_queries: usize, domain_size: usize, nonce: u64) -> Vec<usize> {
+        self.public_coin
+            .draw_integers(num_queries, domain_size, nonce)
+            .expect("failed to draw query positions for Fold-and-Batch")
+    }
+
     /// Returns a list of FRI layer commitments written by the prover into this channel.
     pub fn layer_commitments(&self) -> &[H::Digest] {
         &self.commitments

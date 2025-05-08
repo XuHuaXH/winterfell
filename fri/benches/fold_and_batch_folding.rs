@@ -23,9 +23,8 @@ pub fn fold_and_batch_worker(c: &mut Criterion) {
 
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
 
-            // let last_poly_max_degree = 0;
-            let last_poly_max_degree = worker_degree_bound / 4;
-            // let last_poly_max_degree = worker_degree_bound - 1;
+            let last_poly_max_degree = worker_degree_bound / 4 - 1;  // parameter for Fold-and-Batch
+            // let last_poly_max_degree = worker_degree_bound - 1;   // parameter for Distributed Batched FRI
 
             let worker_domain_size = worker_degree_bound * BLOWUP_FACTOR;
             let options = FoldingOptions::new(

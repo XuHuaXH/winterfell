@@ -61,7 +61,7 @@
 //! * [DEEP-FRI: Sampling Outside the Box Improves Soundness](https://eprint.iacr.org/2019/336)
 //! * Swastik Kooparty's [talk on DEEP-FRI](https://www.youtube.com/watch?v=txo_kPSn59Y&list=PLcIyXLwiPilWvjvNkhMn283LV370Pk5CT&index=6)
 
-#![no_std]
+#![no_std] 
 
 #[macro_use]
 extern crate alloc;
@@ -75,7 +75,7 @@ mod batched_prover;
 pub use batched_prover::BatchedFriProver;
 
 mod fold_and_batch_prover;
-pub use fold_and_batch_prover::{FoldingProver, FoldingOptions, fold_and_batch_prove, fold_and_batch_worker_commit, fold_and_batch_worker_query};
+pub use fold_and_batch_prover::{FoldingProver, FoldingOptions, fold_and_batch_prove, fold_and_batch_worker_commit, fold_and_batch_worker_query, fold_and_batch_master_commit, fold_and_batch_master_query};
 
 mod verifier;
 pub use verifier::{DefaultVerifierChannel, FriVerifier, VerifierChannel, FoldingVerifierChannel, get_query_values};
@@ -96,7 +96,7 @@ mod batched_proof;
 pub use batched_proof::BatchedFriProof;
 
 mod fold_and_batch_proof;
-pub use fold_and_batch_proof::FoldAndBatchProof;
+pub use fold_and_batch_proof::{FoldingProof, FoldAndBatchProof};
 
 mod errors;
 pub use errors::VerifierError;

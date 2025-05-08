@@ -1,7 +1,7 @@
 
 // Parameters for Fold-and-Batch benchmarks
-pub static CIRCUIT_SIZES_E: [usize; 5] = [21, 22, 23, 24, 25];
-pub static NUM_POLY_E: [usize; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+pub static CIRCUIT_SIZES_E: [usize; 1] = [21];
+pub static NUM_POLY_E: [usize; 8] = [0, 1, 2, 3, 4 , 5, 6, 7];
 pub static BLOWUP_FACTOR: usize = 8;
 pub static FOLDING_FACTOR: usize = 2;
 pub static NUM_QUERIES: usize = 50;

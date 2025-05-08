@@ -409,44 +409,49 @@ if __name__ == "__main__":
         # "./benches/bench_data/21_25_0_7_T_divided_by_4_K/",
         "./benches/bench_data/21_26_0_8_T_divided_by_4_K/",
         # "./benches/bench_data/15_21_0_8_T_divided_by_4_K/",
-        # "./benches/bench_data/",
+        # "./benches/bench_data/18_0_7_T_divided_by_4_K/",
+        # "./benches/bench_/data/",
     ]
 
     parallel_fri_prefix = [
         # "./benches/bench_data/21_25_0_7_parallel_fri/",
         "./benches/bench_data/21_26_0_8_parallel_fri/",
+        # "./benches/bench_data/18_0_7_parallel_fri/",
+
     ]
 
     distributed_batched_fri_prefixes = [
         "./benches/bench_data/21_26_0_8_distributed_batched_fri/",
+        # "./benches/bench_data/18_0_7_distributed_batched_fri/",
+
     ]
 
-    # # Prover time
+    # # # Prover time
     show_distributed_batched_fri_worker_time(distributed_batched_fri_prefixes)
     show_distributed_batched_fri_master_time(distributed_batched_fri_prefixes)
     show_fold_and_batch_worker_time(prefixes)
     show_fold_and_batch_master_time(prefixes)
     show_parallel_fri_worker_time(parallel_fri_prefix)
 
-    # Communication cost
-    show_distributed_batched_fri_comm_cost(distributed_batched_fri_prefixes)
-    show_fold_and_batch_comm_cost(prefixes)
+    # # Communication cost
+    # show_distributed_batched_fri_comm_cost(distributed_batched_fri_prefixes)
+    # show_fold_and_batch_comm_cost(prefixes)
 
     # Verification time
-    show_distributed_batched_fri_verification_time(distributed_batched_fri_prefixes)
-    show_fold_and_batch_verification_time(prefixes)
-    show_parallel_fri_verification_time(parallel_fri_prefix)
+    # show_distributed_batched_fri_verification_time(distributed_batched_fri_prefixes)
+    # show_fold_and_batch_verification_time(prefixes)
+    # show_parallel_fri_verification_time(parallel_fri_prefix)
 
-    # # Proof size
-    show_distributed_batched_fri_proof_size(distributed_batched_fri_prefixes)
-    show_fold_and_batch_proof_size(prefixes)
-    show_parallel_fri_proof_size(parallel_fri_prefix)
+    # # # Proof size
+    # show_distributed_batched_fri_proof_size(distributed_batched_fri_prefixes)
+    # show_fold_and_batch_proof_size(prefixes)
+    # show_parallel_fri_proof_size(parallel_fri_prefix)
 
-    # Memory Usage
-    show_distributed_batched_fri_worker_memory_usage(distributed_batched_fri_prefixes)
-    show_distributed_batched_fri_master_memory_usage(distributed_batched_fri_prefixes)
-    show_fold_and_batch_worker_memory_usage(prefixes)
-    show_fold_and_batch_master_memory_usage(prefixes)
-    show_parallel_fri_memory_usage(parallel_fri_prefix)
+    # # Memory Usage
+    # show_distributed_batched_fri_worker_memory_usage(distributed_batched_fri_prefixes)
+    # show_distributed_batched_fri_master_memory_usage(distributed_batched_fri_prefixes)
+    # show_fold_and_batch_worker_memory_usage(prefixes)
+    # show_fold_and_batch_master_memory_usage(prefixes)
+    # show_parallel_fri_memory_usage(parallel_fri_prefix)
 
         

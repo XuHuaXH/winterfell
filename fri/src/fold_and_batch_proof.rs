@@ -1,8 +1,8 @@
 use alloc::{string::ToString, vec::Vec};
 use crypto::ElementHasher;
 use math::FieldElement;
-use utils::{ByteReader, ByteWriter, Deserializable, DeserializationError, Serializable, SliceReader};
-use crate::{FriProof, FriProofLayer, VerifierError};
+use utils::{ByteReader, ByteWriter, Deserializable, DeserializationError, Serializable};
+use crate::{FriProof, FriProofLayer};
 
 #[derive(Clone)]
 pub struct FoldingProof
@@ -32,23 +32,25 @@ impl FoldingProof
     }
 }
 
-pub struct FoldAndBatchProof<H>
+pub struct FoldAndBatchProof<E, H>
 where 
-    H: ElementHasher,
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
 {
     folding_proofs: Vec<FoldingProof>,
     fri_proof: FriProof,
-    worker_evaluations: Vec<Vec<u8>>,
-    master_evaluations: Vec<u8>,
+    worker_evaluations: Vec<Vec<E>>,
+    master_evaluations: Vec<E>,
     worker_layer_commitments: Vec<Vec<H::Digest>>,
     master_layer_commitments: Vec<H::Digest>,
 } 
 
-impl<H> FoldAndBatchProof<H>
+impl<E, H> FoldAndBatchProof<E, H>
 where
-    H: ElementHasher,
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
 {
-    pub(crate) fn new<E: FieldElement>(
+    pub(crate) fn new(
         folding_proofs: Vec<FoldingProof>,
         fri_proof: FriProof,
         worker_evaluations: Vec<Vec<E>>,
@@ -57,23 +59,12 @@ where
         master_layer_commitments: Vec<H::Digest>,
     ) -> Self {
         assert_eq!(folding_proofs.len(), worker_layer_commitments.len(), "The number of folding proofs should match the number of layer commitment vectors");
-        
-        // Convert master evaluations into a vector of bytes
-        let mut master_evaluations_bytes = Vec::with_capacity(E::ELEMENT_BYTES * master_evaluations.len());
-        master_evaluations_bytes.write_many(master_evaluations);
-
-        // Convert worker evaluations into a vector of vector of bytes
-        let worker_evaluations = worker_evaluations.iter().map(|eval_vector| {
-            let mut worker_evaluation_bytes = Vec::with_capacity(E::ELEMENT_BYTES * eval_vector.len());
-            worker_evaluation_bytes.write_many(eval_vector);
-            worker_evaluation_bytes
-        }).collect();
 
         FoldAndBatchProof {
             folding_proofs,
             fri_proof,
             worker_evaluations,
-            master_evaluations: master_evaluations_bytes,
+            master_evaluations,
             worker_layer_commitments,
             master_layer_commitments,    
         }
@@ -96,12 +87,21 @@ where
         &self.worker_layer_commitments
     }
 
+    pub(crate) fn master_evaluations(&self) -> &Vec<E> {
+        &self.master_evaluations
+    }
+
+
+    pub(crate) fn worker_evaluations(&self) -> &Vec<Vec<E>> {
+        &self.worker_evaluations
+    }
+
 
     /// Returns the number of the evaluation values in this proof.
     ///
     /// The number of evaluation values is computed by dividing the number of bytes 
     /// in `evaluations` by the size of the field element specified by `E` type parameter.
-    pub fn num_master_evaluations<E: FieldElement>(&self) -> usize {
+    pub fn num_master_evaluations(&self) -> usize {
         self.master_evaluations.len() / E::ELEMENT_BYTES
     }
 
@@ -153,45 +153,45 @@ where
     }
 
 
-    // PARSING
-    // --------------------------------------------------------------------------------------------
+    // // PARSING
+    // // --------------------------------------------------------------------------------------------
 
-    /// Returns a vector of evaluations at the queried positions parsed from this proof.
-    ///
-    /// # Errors
-    /// Returns an error if:
-    /// * Any of the remainder values could not be parsed correctly.
-    /// * Not all bytes have been consumed while parsing remainder values.
-    pub fn parse_master_evaluations<E: FieldElement>(&self) -> Result<Vec<E>, VerifierError> {
-        let num_elements = self.num_master_evaluations::<E>();
+    // /// Returns a vector of evaluations at the queried positions parsed from this proof.
+    // ///
+    // /// # Errors
+    // /// Returns an error if:
+    // /// * Any of the remainder values could not be parsed correctly.
+    // /// * Not all bytes have been consumed while parsing remainder values.
+    // pub fn parse_master_evaluations(&self) -> Result<Vec<E>, VerifierError> {
+    //     let num_elements = self.num_master_evaluations();
         
-        let mut reader = SliceReader::new(&self.master_evaluations);
-        let master_evaluations = reader.read_many(num_elements).map_err(|err| {
-            VerifierError::InvalidValueInEvaluationsVector(err.to_string())
-        })?;
-        if reader.has_more_bytes() {
-            return Err(VerifierError::UnconsumedBytesInEvaluationsVector);
-        }
-        Ok(master_evaluations)
-    }
+    //     let mut reader = SliceReader::new(&self.master_evaluations);
+    //     let master_evaluations = reader.read_many(num_elements).map_err(|err| {
+    //         VerifierError::InvalidValueInEvaluationsVector(err.to_string())
+    //     })?;
+    //     if reader.has_more_bytes() {
+    //         return Err(VerifierError::UnconsumedBytesInEvaluationsVector);
+    //     }
+    //     Ok(master_evaluations)
+    // }
 
 
-    pub fn parse_worker_evaluations<E: FieldElement>(&self) -> Result<Vec<Vec<E>>, VerifierError> {
-        let mut worker_evaluations = Vec::with_capacity(self.folding_proofs.len());
+    // pub fn parse_worker_evaluations(&self) -> Result<Vec<Vec<E>>, VerifierError> {
+    //     let mut worker_evaluations = Vec::with_capacity(self.folding_proofs.len());
         
-        for byte_vec in self.worker_evaluations.iter() {
-            let mut reader = SliceReader::new(byte_vec);
-            let num_elements = byte_vec.len() / E::ELEMENT_BYTES;
-            let eval_vec : Vec<E> = reader.read_many(num_elements).map_err(|err| {
-                VerifierError::InvalidValueInEvaluationsVector(err.to_string())
-            })?;
-            if reader.has_more_bytes() {
-                return Err(VerifierError::UnconsumedBytesInEvaluationsVector);
-            }
-            worker_evaluations.push(eval_vec);
-        }
-        Ok(worker_evaluations)
-    }
+    //     for byte_vec in self.worker_evaluations.iter() {
+    //         let mut reader = SliceReader::new(byte_vec);
+    //         let num_elements = byte_vec.len() / E::ELEMENT_BYTES;
+    //         let eval_vec : Vec<E> = reader.read_many(num_elements).map_err(|err| {
+    //             VerifierError::InvalidValueInEvaluationsVector(err.to_string())
+    //         })?;
+    //         if reader.has_more_bytes() {
+    //             return Err(VerifierError::UnconsumedBytesInEvaluationsVector);
+    //         }
+    //         worker_evaluations.push(eval_vec);
+    //     }
+    //     Ok(worker_evaluations)
+    // }
 }
 
 // SERIALIZATION / DESERIALIZATION
@@ -236,9 +236,10 @@ impl Deserializable for FoldingProof {
     }
 }
 
-impl<H> Serializable for FoldAndBatchProof<H>
+impl<E, H> Serializable for FoldAndBatchProof<E, H>
 where 
-    H: ElementHasher
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
 {
     /// Serializes `self` and writes the resulting bytes into the `target` writer.
     fn write_into<W: ByteWriter>(&self, target: &mut W) {
@@ -252,16 +253,27 @@ where
         // write FRI proof
         self.fri_proof.write_into(target);
 
+        // Convert worker evaluations into a vector of vector of bytes
+        let worker_evaluations_bytes_vec : Vec<Vec<u8>> = self.worker_evaluations.iter().map(|eval_vector| {
+            let mut worker_evaluation_bytes = Vec::with_capacity(E::ELEMENT_BYTES * eval_vector.len());
+            worker_evaluation_bytes.write_many(eval_vector);
+            worker_evaluation_bytes
+        }).collect();
+
         // write worker evaluations
-        target.write_u32(self.worker_evaluations.len() as u32);
-        for eval_vec in self.worker_evaluations.iter() {
+        target.write_u32(worker_evaluations_bytes_vec.len() as u32);
+        for eval_vec in worker_evaluations_bytes_vec.iter() {
             target.write_u16(eval_vec.len() as u16);
             target.write_bytes(&eval_vec);
         }
 
+        // Convert master evaluations into a vector of bytes
+        let mut master_evaluations_bytes = Vec::with_capacity(E::ELEMENT_BYTES * self.master_evaluations.len());
+        master_evaluations_bytes.write_many(&self.master_evaluations);
+
         // write master evaluations
-        target.write_u16(self.master_evaluations.len() as u16);
-        target.write_bytes(&self.master_evaluations);
+        target.write_u16(master_evaluations_bytes.len() as u16);
+        target.write_bytes(&master_evaluations_bytes);
 
         // write worker layer commitments
         target.write_u32(self.worker_layer_commitments.len() as u32);
@@ -280,9 +292,10 @@ where
     }
 }
 
-impl<H> Deserializable for FoldAndBatchProof<H>
+impl<E, H> Deserializable for FoldAndBatchProof<E, H>
 where 
-    H: ElementHasher
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
 {
     /// Reads a Fold-and-Batch proof from the specified `source` and returns the result.
     ///
@@ -302,13 +315,15 @@ where
         let mut worker_evaluations = Vec::with_capacity(num_workers);
         for _ in 0..num_workers {
             let num_evaluations_bytes = source.read_u16()? as usize;
-            let eval_vec = source.read_vec(num_evaluations_bytes)?;
-            worker_evaluations.push(eval_vec);
+            let num_evaluations = num_evaluations_bytes / E::ELEMENT_BYTES;
+            let evaluation_vec : Vec<E> = source.read_many(num_evaluations)?;
+            worker_evaluations.push(evaluation_vec);
         }
 
         // read master evaluations
         let num_evaluations_bytes = source.read_u16()? as usize;
-        let master_evaluations = source.read_vec(num_evaluations_bytes)?;
+        let num_evaluations = num_evaluations_bytes / E::ELEMENT_BYTES;
+        let master_evaluations : Vec<E> = source.read_many(num_evaluations)?;
 
 
         // read worker layer commitments

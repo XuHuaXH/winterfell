@@ -38,6 +38,8 @@ pub enum VerifierError {
     DegreeTruncation(usize, usize, usize),
     /// Deserialization failed while attempting to deserialize one of the function opening proofs
     FunctionOpeningsDeserializationError(String),
+    /// Deserialization failed while attempting to deserialize the Fri remainder
+    FriRemainderDeserializationError(String),
     /// The batched evaluations are not consistent with the evaluations of the individual polynomials.
     InvalidPolynomialBatching,
     /// Encountered invalid value when deserializing the evaluations from a batched FRI proof.
@@ -82,6 +84,9 @@ impl fmt::Display for VerifierError {
             }
             Self::FunctionOpeningsDeserializationError(err) => {
                 write!(f, "Failed to deserialize the function openings with error: {err}")
+            }
+            Self::FriRemainderDeserializationError(err) => {
+                write!(f, "Failed to deserialize Fri remainder polynomial with error: {err}")
             }
             Self::InvalidPolynomialBatching => {
                 write!(f, "The batching of polynomials is inconsistent")

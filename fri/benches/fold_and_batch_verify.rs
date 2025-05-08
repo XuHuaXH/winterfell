@@ -25,14 +25,10 @@ pub fn fold_and_batch_verifier(c: &mut Criterion) {
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
             let worker_domain_size = worker_degree_bound * BLOWUP_FACTOR;
 
-            // let worker_last_poly_max_degree = 0;
-            let worker_last_poly_max_degree = worker_degree_bound / 4;
-            // let worker_last_poly_max_degree = worker_degree_bound - 1;
+            // let worker_last_poly_max_degree = worker_degree_bound / 4 - 1;  // parameter for Fold-and-Batch
+            let worker_last_poly_max_degree = worker_degree_bound - 1;   // parameter for Distributed Batched FRI
 
             let master_degree_bound : usize = worker_last_poly_max_degree + 1;
-            println!("worker degree bound: {}", worker_degree_bound);
-            println!("worker_last_poly_max_degree: {}", worker_last_poly_max_degree);
-            println!("master degree bound: {}", master_degree_bound);
             let master_domain_size = master_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
             let num_poly = 1 << num_poly_e;
             let master_options = FriOptions::new(BLOWUP_FACTOR, FOLDING_FACTOR, MASTER_MAX_REMAINDER_DEGREE);
@@ -71,7 +67,8 @@ pub fn fold_and_batch_verifier(c: &mut Criterion) {
                             let mut verifier = black_box(FoldAndBatchVerifier::<BaseElement, DefaultVerifierChannel<BaseElement, _, MerkleTree<Blake3_256<_>>>, _, DefaultRandomCoin<_>, _>::new(public_coin, NUM_QUERIES, master_options.clone(), worker_degree_bound, master_degree_bound).unwrap());
         
                             // Verify the Fold-and-Batch proof.
-                            let _ = black_box(verifier.verify_fold_and_batch(black_box(&proof)));
+                            let result = verifier.verify_fold_and_batch(black_box(&proof));
+                            let _ = black_box(result);
                         },
                         BatchSize::LargeInput,
                     );

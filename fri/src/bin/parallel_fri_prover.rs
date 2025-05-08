@@ -21,7 +21,6 @@ fn run_single_fri_prover(circuit_size_e: usize, num_poly_e: usize) {
     // read the input evaluation vector from file
     let mut file = File::open(format!("./benches/input_data/fri_prover/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap();
     let mut reader = ReadAdapter::new(&mut file);
-    // let evaluation_size = reader.read_u64().unwrap() as usize;
     let evaluations_size = worker_domain_size;
     let mut evaluations = Vec::with_capacity(evaluations_size);
 
