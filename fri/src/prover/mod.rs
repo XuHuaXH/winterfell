@@ -105,13 +105,35 @@ where
     _channel: PhantomData<C>,
 }
 
-struct FriLayer<E: FieldElement, H: Hasher, V: VectorCommitment<H>> {
+pub struct FriLayer<E: FieldElement, H: Hasher, V: VectorCommitment<H>> {
     commitment: V,
     evaluations: Vec<E>,
     _h: PhantomData<H>,
 }
 
 struct FriRemainder<E: FieldElement>(Vec<E>);
+
+// FRI LAYER IMPLEMENTATION
+// ================================================================================================
+
+impl<E: FieldElement, H: Hasher, V: VectorCommitment<H>> FriLayer<E, H, V> {
+    pub fn new(commitment: V, evaluations: Vec<E>) -> Self {
+        FriLayer {
+            commitment,
+            evaluations,
+            _h: PhantomData
+        }
+    }
+
+    pub fn commitment(&self) -> &V {
+        &self.commitment
+    }
+
+    pub fn evaluations(&self) -> &[E] {
+        &self.evaluations
+    }
+}
+
 
 // PROVER IMPLEMENTATION
 // ================================================================================================

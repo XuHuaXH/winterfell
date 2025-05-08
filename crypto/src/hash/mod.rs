@@ -123,6 +123,11 @@ impl<const N: usize> Serializable for ByteDigest<N> {
     fn write_into<W: utils::ByteWriter>(&self, target: &mut W) {
         target.write_bytes(&self.0);
     }
+
+    // Returns the number of bytes in a ByteDigest
+    fn get_size_hint(&self) -> usize {
+        N
+    }
 }
 
 impl<const N: usize> Deserializable for ByteDigest<N> {

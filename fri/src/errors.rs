@@ -5,6 +5,7 @@
 
 use core::fmt;
 
+use alloc::string::String;
 use crypto::RandomCoinError;
 
 // VERIFIER ERROR
@@ -35,7 +36,15 @@ pub enum VerifierError {
     /// Polynomial degree at one of the FRI layers could not be divided evenly by the folding
     /// factor.
     DegreeTruncation(usize, usize, usize),
-}
+    /// Deserialization failed while attempting to deserialize one of the function opening proofs
+    FunctionOpeningsDeserializationError(String),
+    /// The batched evaluations are not consistent with the evaluations of the individual polynomials.
+    InvalidPolynomialBatching,
+    /// Encountered invalid value when deserializing the evaluations from a batched FRI proof.
+    InvalidValueInEvaluationsVector(String),
+    /// Encountered unconsumed bytes when deserializing the evaluations from a batched FRI proof.
+    UnconsumedBytesInEvaluationsVector,
+}   
 
 impl fmt::Display for VerifierError {
     #[rustfmt::skip]
@@ -70,6 +79,18 @@ impl fmt::Display for VerifierError {
             }
             Self::DegreeTruncation(degree, folding, layer) => {
                 write!(f, "degree reduction from {degree} by {folding} at layer {layer} results in degree truncation")
+            }
+            Self::FunctionOpeningsDeserializationError(err) => {
+                write!(f, "Failed to deserialize the function openings with error: {err}")
+            }
+            Self::InvalidPolynomialBatching => {
+                write!(f, "The batching of polynomials is inconsistent")
+            }
+            Self::InvalidValueInEvaluationsVector(err) => {
+                write!(f, "Encountered invalid value when deserializing the evaluations vector in a batched FRI proof: {err}")
+            }
+            Self::UnconsumedBytesInEvaluationsVector => {
+                write!(f, "Encountered unconsumed bytes when deserializing the evaluations from a batched FRI proof")
             }
         }
     }
