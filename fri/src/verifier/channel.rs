@@ -10,7 +10,7 @@ use crypto::{ElementHasher, Hasher, VectorCommitment};
 use math::FieldElement;
 use utils::{group_slice_elements, DeserializationError};
 
-use crate::{FriProof, VerifierError};
+use crate::{fold_and_batch_proof::FoldingProof, FriProof, VerifierError};
 
 // VERIFIER CHANNEL TRAIT
 // ================================================================================================
@@ -198,5 +198,110 @@ where
 
     fn take_fri_remainder(&mut self) -> Vec<E> {
         self.remainder.clone()
+    }
+}
+
+
+
+// FOLDING VERIFIER CHANNEL IMPLEMENTATION
+// ================================================================================================
+
+/// Provides an implementation of the [VerifierChannel] trait intended to be used as the verifier
+/// channel of a folding proof verifier for a FoldAndBatchVerifier.
+pub struct FoldingVerifierChannel<
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
+    V: VectorCommitment<H>,
+> {
+    layer_commitments: Vec<H::Digest>,
+    layer_proofs: Vec<V::MultiProof>,
+    layer_queries: Vec<Vec<E>>,
+    _h: PhantomData<H>,
+}
+
+impl<E, H, V> FoldingVerifierChannel<E, H, V>
+where
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
+    V: VectorCommitment<H>,
+{
+    /// Builds a new verifier channel to be used by a [FoldingVerifier](crate::fold_and_batch_verifier::FoldingVerifier).
+    ///
+    /// # Errors
+    /// Returns an error if the specified `proof` could not be parsed correctly.
+    pub fn new(
+        folding_proof: &FoldingProof,
+        layer_commitments: Vec<H::Digest>,
+        domain_size: usize,
+        folding_factor: usize,
+    ) -> Result<Self, DeserializationError> {
+
+        assert!(domain_size.is_power_of_two(), "domain size must be a power of two");
+        assert!(folding_factor.is_power_of_two(), "folding factor must be a power of two");
+        assert!(folding_factor > 1, "folding factor must be greater than 1");
+
+        let mut layer_proofs = Vec::new();
+        let mut layer_queries = Vec::new();
+        let folding_proof = folding_proof.folding_proof().to_vec();
+
+        // parse all layers
+        let mut current_domain_size = domain_size;
+        for (i, layer) in folding_proof.into_iter().enumerate() {
+            current_domain_size /= folding_factor;
+            let (qv, op) = layer.parse::<_, H, V>(folding_factor).map_err(|err| {
+                DeserializationError::InvalidValue(format!("failed to parse FRI layer {i}: {err}"))
+            })?;
+
+            // check that the opening proof matches the domain length
+            if <V as VectorCommitment<H>>::get_multiproof_domain_len(&op) != current_domain_size {
+                return Err(DeserializationError::InvalidValue(format!(
+                    "expected a domain of size {} but was {}",
+                    current_domain_size,
+                    <V as VectorCommitment<H>>::get_multiproof_domain_len(&op),
+                )));
+            }
+
+            layer_proofs.push(op);
+            layer_queries.push(qv);
+        }
+
+        Ok(FoldingVerifierChannel {
+            layer_commitments,
+            layer_proofs,
+            layer_queries,
+            _h: PhantomData,
+        })
+    }
+
+}
+
+impl<E, H, V> VerifierChannel<E> for FoldingVerifierChannel<E, H, V>
+where
+    E: FieldElement,
+    H: ElementHasher<BaseField = E::BaseField>,
+    V: VectorCommitment<H>,
+{
+    type Hasher = H;
+    type VectorCommitment = V;
+
+    // TODO: fix this
+    fn read_fri_num_partitions(&self) -> usize {
+        1
+    }
+
+    fn read_fri_layer_commitments(&mut self) -> Vec<H::Digest> {
+        self.layer_commitments.drain(..).collect()
+    }
+
+    fn take_next_fri_layer_proof(&mut self) -> V::MultiProof {
+        self.layer_proofs.remove(0)
+    }
+
+    fn take_next_fri_layer_queries(&mut self) -> Vec<E> {
+        self.layer_queries.remove(0)
+    }
+
+    fn take_fri_remainder(&mut self) -> Vec<E> {
+        panic!("Unimplemented");
     }
 }

@@ -250,6 +250,7 @@ where
         fft::interpolate_poly_with_offset(evaluations, &inv_twiddles, self.options.domain_offset());
         let remainder_poly_size = evaluations.len() / self.options.blowup_factor();
         let remainder_poly = evaluations[..remainder_poly_size].to_vec();
+        // TODO: Why do we commit the remainder? The remainder polynomial is included in the FriProof.
         let commitment = <H as ElementHasher>::hash_elements(&remainder_poly);
         channel.commit_fri_layer(commitment);
         self.remainder_poly = FriRemainder(remainder_poly);
@@ -310,7 +311,7 @@ where
 
 /// Builds a single proof layer by querying the evaluations of the passed in FRI layer at the
 /// specified positions.
-fn query_layer<E: FieldElement, H: Hasher, V: VectorCommitment<H>, const N: usize>(
+pub(crate) fn query_layer<E: FieldElement, H: Hasher, V: VectorCommitment<H>, const N: usize>(
     layer: &FriLayer<E, H, V>,
     positions: &[usize],
 ) -> FriProofLayer {

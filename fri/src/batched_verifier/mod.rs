@@ -185,7 +185,7 @@ where
 // HELPER FUNCTIONS
 // ================================================================================================
 
-fn verify_batching<E: FieldElement>(query_positions: &[usize], batched_evaluations: &[E], queried_values: &Vec<Vec<E>>, batched_fri_challenge: E, domain_size: usize, folding_factor: usize) -> Result<(), VerifierError> {
+pub(crate) fn verify_batching<E: FieldElement>(query_positions: &[usize], batched_evaluations: &[E], queried_values: &Vec<Vec<E>>, batched_fri_challenge: E, domain_size: usize, folding_factor: usize) -> Result<(), VerifierError> {
 
     // Extract from queried_values which is in transposed form the evaluations of each polynomial 
     // at query_positions.

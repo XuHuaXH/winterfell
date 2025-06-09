@@ -8,7 +8,7 @@ use math::FieldElement;
 #[cfg(feature = "concurrent")]
 use utils::iterators::*;
 
-mod channel;
+pub(crate) mod channel;
 use channel::BatchedFriProverChannel;
 
 use crate::folding::fold_positions;
@@ -124,6 +124,8 @@ where
     /// contains all the input polynomials to be batched in evaluation form. Namely, each vector
     /// in `inputs` is the evaluation vector of a polynomial to be batched in batched FRI 
     /// evaluated at all the points in the FRI evaluation domain.
+    /// 
+    /// Returns a batched FRI proof for the polynomials represented by the input evaluation vectors.
     pub fn build_proof(&mut self, inputs: &Vec<Vec<E>>, domain_size: usize, num_queries: usize) -> BatchedFriProof<H> {
         
         // -------------------------------- Step 1 ---------------------------------------------
@@ -147,7 +149,7 @@ where
         // Batch the input polynomial evaluations into a single evaluation vector
         // using the batched FRI challenge obtained from Fiat-Shamir.
         let challenge = self.channel.draw_batched_fri_challange();
-        let batched_evaluations = combine_poly_evaluations(inputs, challenge);
+        let batched_evaluations = combine_poly_evaluations(&inputs, challenge);
 
 
         // -------------------------------- Step 3 ---------------------------------------------
