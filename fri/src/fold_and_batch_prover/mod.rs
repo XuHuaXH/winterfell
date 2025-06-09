@@ -10,7 +10,7 @@ use utils::{
 };
 
 use crate::{
-    batched_prover::combine_poly_evaluations, build_layer_commitment, fold_and_batch_proof::FoldingProof, folding::{apply_drp, fold_positions}, prover::query_layer, BatchedFriProver, DefaultProverChannel, FoldAndBatchProof, FriLayer, FriOptions, FriProver, ProverChannel
+    batched_prover::combine_poly_evaluations, build_layer_commitment, fold_and_batch_proof::FoldingProof, folding::{apply_drp, fold_positions}, prover::query_layer, DefaultProverChannel, FoldAndBatchProof, FriLayer, FriOptions, FriProver, ProverChannel
 };
 
 mod options;

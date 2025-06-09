@@ -20,3 +20,6 @@ fri/benches/bench_data/
 
 # benchmark inputs for FRI
 fri/benches/input_data/
+
+# scripts for runnign experiments
+fri/scripts/

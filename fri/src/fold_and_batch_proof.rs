@@ -105,7 +105,7 @@ where
         self.master_evaluations.len() / E::ELEMENT_BYTES
     }
 
-    // Returns the number of bytes in this proof.
+    /// Calculates the size of this proof in bytes.
     pub fn size(&self) -> usize {
 
         // +4 for the length of the folding_proofs vector

@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use crypto::{DefaultRandomCoin, ElementHasher, RandomCoin, VectorCommitment};
+use crypto::{ElementHasher, RandomCoin, VectorCommitment};
 use math::FieldElement;
 use utils::group_slice_elements;
 

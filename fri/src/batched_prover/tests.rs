@@ -100,14 +100,14 @@ fn test_combine_poly_evaluations() {
 
 fn build_evaluations_from_random_poly(degree_bound: usize, lde_blowup: usize) -> Vec<BaseElement> {
     // Generates a random vector which represents the coefficients of a random polynomial 
-    // with degree < degree_bound
+    // with degree < degree_bound.
     let mut p = rand_vector::<BaseElement>(degree_bound);
 
-    // allocating space for the evaluation form of the polynomial p
+    // Allocate space for the evaluation form of the polynomial p.
     let domain_size = degree_bound * lde_blowup;
     p.resize(domain_size, BaseElement::ZERO);
 
-    // transforms the polynomial from coefficient form to evaluation form in place
+    // Transforms the polynomial from coefficient form to evaluation form in place.
     let twiddles = fft::get_twiddles::<BaseElement>(domain_size);
     fft::evaluate_poly(&mut p, &twiddles);
 
@@ -137,18 +137,18 @@ fn fri_prove_verify_random(
         inputs.push(build_evaluations_from_random_poly(degree_bound, lde_blowup));
     }
 
-    // instantiate the prover and generate the proof
+    // Instantiate the prover and generate the proof
     let mut prover = BatchedFriProver::<BaseElement, Blake3, MerkleTree<Blake3>, DefaultRandomCoin<Blake3>>::new(options.clone());
     let batched_fri_proof = prover.build_proof(&mut inputs, domain_size, num_queries);
 
-    // test proof serialization / deserialization
+    // Test proof serialization / deserialization
     let mut proof_bytes = Vec::new();
     batched_fri_proof.write_into(&mut proof_bytes);
 
     let mut reader = SliceReader::new(&proof_bytes);
     let batched_fri_proof = BatchedFriProof::read_from(&mut reader).unwrap();
 
-    // make sure the proof can be verified
+    // Make sure the proof can be verified
     let public_coin = DefaultRandomCoin::<Blake3>::new(&[]);
     let mut verifier = BatchedFriVerifier::<BaseElement, DefaultVerifierChannel<BaseElement, _, MerkleTree<Blake3>>, _, DefaultRandomCoin<_>, _>::new(public_coin, num_queries, options, degree_bound)?;
     verifier.verify(&batched_fri_proof)

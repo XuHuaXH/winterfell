@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
 use math::{fields::f128::BaseElement, FieldElement};
-use winter_fri::{fold_and_batch_master_commit, fold_and_batch_master_query, fold_and_batch_worker_commit, fold_and_batch_worker_query, BatchedFriProver, DefaultProverChannel, FriOptions, FriProver};
+use winter_fri::{fold_and_batch_master_commit, fold_and_batch_master_query, fold_and_batch_worker_commit, fold_and_batch_worker_query, DefaultProverChannel, FriOptions, FriProver};
 use std::io::Write;
 use std::{fs::File, hint::black_box};
 use std::mem::size_of;
@@ -71,8 +71,7 @@ pub fn fold_and_batch_master(c: &mut Criterion) {
             fold_and_batch_worker_query::<BaseElement, Blake3, MerkleTree<_>, DefaultRandomCoin<_>>(&inputs, &mut worker_nodes, &query_positions);
 
 
-            // Compute the total amount of communication between the workers and the master.
-            //  query_positions * num_poly
+            // Compute the total amount of communication in bytes between the workers and the master.
             let worker_layer_commitment_size = {
                 let num_vec = worker_layer_commitments.len();
                 num_vec * worker_layer_commitments[0].len() * 32 // 32 bytes per digest

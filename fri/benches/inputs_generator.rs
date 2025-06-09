@@ -44,8 +44,8 @@ fn generate_batched_fri_inputs() {
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
             let worker_domain_size = worker_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
             let num_poly = 1 << num_poly_e;
-            // let worker_last_poly_max_degree = worker_degree_bound / 4 - 1;
-            let worker_last_poly_max_degree = worker_degree_bound - 1;
+            // let worker_last_poly_max_degree = worker_degree_bound / 4 - 1;  // parameter for Fold-and-Batch
+            let worker_last_poly_max_degree = worker_degree_bound - 1;  // parameter for Distributed Batched FRI
     
             // Prepare the query positions. For simplicity, we draw some random integers 
             // instead of using Fiat-Shamir.

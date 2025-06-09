@@ -1,7 +1,6 @@
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree};
-use math::{fft, fields::f128::BaseElement, FieldElement};
-use rand_utils::rand_vector;
+use math::fields::f128::BaseElement;
 use winter_fri::{DefaultProverChannel, FriOptions, FriProver};
 use std::hint::black_box;
 

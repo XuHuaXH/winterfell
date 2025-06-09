@@ -11,9 +11,8 @@ use utils::iterators::*;
 pub(crate) mod channel;
 use channel::BatchedFriProverChannel;
 
-use crate::fold_and_batch_proof::FoldingProof;
 use crate::folding::fold_positions;
-use crate::{build_layer_commitment, BatchedFriProof, FoldAndBatchProof, FriLayer, FriOptions, FriProofLayer, FriProver};
+use crate::{build_layer_commitment, BatchedFriProof, FriLayer, FriOptions, FriProofLayer, FriProver};
 
 #[cfg(test)]
 mod tests;

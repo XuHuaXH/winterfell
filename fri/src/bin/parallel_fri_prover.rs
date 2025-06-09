@@ -2,7 +2,7 @@ use std::{env, fs::File};
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree};
 use math::fields::f128::BaseElement;
-use utils::{ByteReader, Deserializable, ReadAdapter};
+use utils::{Deserializable, ReadAdapter};
 use winter_fri::{DefaultProverChannel, FriOptions, FriProver};
 
 type Blake3 = Blake3_256<BaseElement>;
