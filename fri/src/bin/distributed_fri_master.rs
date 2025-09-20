@@ -1,24 +1,30 @@
 use std::{env, fs::File};
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, Hasher, MerkleTree, RandomCoin};
-use math::fields::f128::BaseElement;
+use math::fields::{f128::BaseElement, QuadExtension};
 use utils::{ByteReader, Deserializable, ReadAdapter};
 use winter_fri::{fold_and_batch_master_commit, fold_and_batch_master_query, DefaultProverChannel, FoldingProof, FriOptions, FriProver};
 
 type Blake3 = Blake3_256<BaseElement>;
-type Blake3Digest = <Blake3_256<math::fields::f128::BaseElement> as Hasher>::Digest;
+type Blake3Digest = <Blake3 as Hasher>::Digest;
 
-static BLOWUP_FACTOR: usize = 8;
+static BLOWUP_FACTOR: usize = 4;
 static FOLDING_FACTOR: usize = 2;
-static NUM_QUERIES: usize = 50;
+static NUM_QUERIES: usize = 282;
 static MASTER_MAX_REMAINDER_DEGREE: usize = 0;
 
+enum Mode {
+    DistributedBatchedFri,
+    FoldAndBatch
+}
 
-fn run_fold_and_batch_master(circuit_size_e: usize, num_poly_e: usize) {
+fn run_distributed_fri_master(circuit_size_e: usize, num_poly_e: usize, mode: Mode) {
     let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
     let worker_domain_size = worker_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
-    // let worker_last_poly_max_degree = worker_degree_bound / 4 - 1;
-    let worker_last_poly_max_degree = worker_degree_bound - 1;
+    let worker_last_poly_max_degree = match mode {
+        Mode::DistributedBatchedFri => worker_degree_bound - 1,
+        Mode::FoldAndBatch => worker_degree_bound / 4 - 1
+    };
 
     let master_degree_bound : usize = worker_last_poly_max_degree + 1;
     let master_domain_size = master_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
@@ -33,19 +39,27 @@ fn run_fold_and_batch_master(circuit_size_e: usize, num_poly_e: usize) {
         .expect("failed to draw query positions");
 
     // Read master prover inputs from file
-    let mut file = File::open(format!("./benches/input_data/fold_and_batch_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap();
+    let mut file = match mode {
+        Mode::DistributedBatchedFri => 
+            // File::open(format!("/dev/shm/frittata/benches/input_data/distributed_batched_fri_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap(),
+            File::open(format!("./benches/input_data/distributed_batched_fri_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap(),
+        Mode::FoldAndBatch => 
+            File::open(format!("/dev/shm/frittata/benches/input_data/fold_and_batch_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap()
+            // File::open(format!("./benches/input_data/fold_and_batch_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap()
+    };
+
     let mut reader = ReadAdapter::new(&mut file);
     let evaluations_size = master_domain_size;
     let mut batched_fri_inputs = Vec::with_capacity(num_poly);
     let mut worker_layer_commitments : Vec<Vec<Blake3Digest>> = Vec::with_capacity(num_poly);
     let mut folding_proofs = Vec::with_capacity(num_poly);
-    let mut worker_queried_evaluations : Vec<Vec<BaseElement>> = Vec::with_capacity(num_poly);
+    let mut worker_queried_evaluations : Vec<Vec<QuadExtension<BaseElement>>> = Vec::with_capacity(num_poly);
 
     // Read the batched fri inputs.
     for _ in 0..num_poly {
         let mut eval_vec = Vec::with_capacity(evaluations_size);
         for _ in 0..evaluations_size {
-            let element = BaseElement::read_from(&mut reader).unwrap();
+            let element = QuadExtension::<BaseElement>::read_from(&mut reader).unwrap();
             eval_vec.push(element);
         }
         batched_fri_inputs.push(eval_vec);
@@ -70,7 +84,7 @@ fn run_fold_and_batch_master(circuit_size_e: usize, num_poly_e: usize) {
     for _ in 0..num_poly {
         let mut queried_eval_vec = Vec::with_capacity(NUM_QUERIES);
         for _ in 0..NUM_QUERIES {
-            let element = BaseElement::read_from(&mut reader).unwrap();
+            let element = QuadExtension::<BaseElement>::read_from(&mut reader).unwrap();
             queried_eval_vec.push(element);
         }
         worker_queried_evaluations.push(queried_eval_vec);
@@ -82,7 +96,7 @@ fn run_fold_and_batch_master(circuit_size_e: usize, num_poly_e: usize) {
 
 
     // Instantiate the master prover and its prover channel.
-    let mut master_prover = FriProver::<BaseElement, DefaultProverChannel<BaseElement, Blake3, DefaultRandomCoin<_>>, Blake3, MerkleTree<_>>::new(master_options.clone());
+    let mut master_prover = FriProver::<QuadExtension<BaseElement>, DefaultProverChannel<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>>, Blake3, MerkleTree<_>>::new(master_options.clone());
     let mut master_prover_channel = DefaultProverChannel::new(master_domain_size, NUM_QUERIES);
 
     let (batched_evaluations, _) = fold_and_batch_master_commit(
@@ -112,6 +126,11 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let circuit_size_e = args[1].parse::<usize>().unwrap();
     let num_poly_e = args[2].parse::<usize>().unwrap();
+    let mode = &args[3];
 
-    run_fold_and_batch_master(circuit_size_e, num_poly_e);
+    match mode.as_str() {
+        "distributed_batched_fri" => run_distributed_fri_master(circuit_size_e, num_poly_e, Mode::DistributedBatchedFri),
+        "fold_and_batch" => run_distributed_fri_master(circuit_size_e, num_poly_e, Mode::FoldAndBatch),
+        _ => unimplemented!("mode {} is not supported", mode),
+    }
 }

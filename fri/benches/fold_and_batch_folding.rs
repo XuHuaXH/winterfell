@@ -1,9 +1,9 @@
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
-use math::fields::f128::BaseElement;
+use math::fields::{f128::BaseElement, QuadExtension};
 
 use winter_fri::{DefaultProverChannel, FoldingOptions, FoldingProver};
-use std::hint::black_box;
+use std::{hint::black_box};
 
 mod config;
 use config::{BLOWUP_FACTOR, CIRCUIT_SIZES_E, FOLDING_FACTOR, NUM_POLY_E, NUM_QUERIES};
@@ -15,6 +15,7 @@ type Blake3 = Blake3_256<BaseElement>;
 
 
 pub fn fold_and_batch_worker(c: &mut Criterion) {
+
     let mut folding_group = c.benchmark_group("folding prover");
     folding_group.sample_size(10);
 
@@ -23,8 +24,8 @@ pub fn fold_and_batch_worker(c: &mut Criterion) {
 
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
 
-            let last_poly_max_degree = worker_degree_bound / 4 - 1;  // parameter for Fold-and-Batch
-            // let last_poly_max_degree = worker_degree_bound - 1;   // parameter for Distributed Batched FRI
+            // let last_poly_max_degree = worker_degree_bound - 1;       // parameter for Distributed Batched FRI
+            let last_poly_max_degree = worker_degree_bound / 4 - 1;   // parameter for Fold-and-Batch
 
             let worker_domain_size = worker_degree_bound * BLOWUP_FACTOR;
             let options = FoldingOptions::new(
@@ -49,8 +50,8 @@ pub fn fold_and_batch_worker(c: &mut Criterion) {
                     b.iter_batched(
                         || {
                             let prover =
-                                FoldingProver::<_, _, _, MerkleTree<Blake3>>::new(options.clone());
-                            let channel = DefaultProverChannel::<BaseElement, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
+                                FoldingProver::<QuadExtension<BaseElement>, _, _, MerkleTree<Blake3>>::new(options.clone());
+                            let channel = DefaultProverChannel::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
                             (prover, channel)
                         },
                         |(mut prover, mut channel)| {

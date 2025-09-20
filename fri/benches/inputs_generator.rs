@@ -1,7 +1,7 @@
 use std::fs::File;
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
-use math::fields::f128::BaseElement;
+use math::fields::{f128::BaseElement, QuadExtension};
 use ::utils::{ByteWriter, Serializable};
 
 mod config;
@@ -35,17 +35,35 @@ fn generate_fri_inputs() {
     }
 }
 
+enum Mode {
+    FoldAndBatch,
+    DistributedBatchedFri,
+}
 
 #[test]
-fn generate_batched_fri_inputs() {
+fn generate_fold_and_batch_inputs() {
+    generate_batched_fri_inputs(Mode::FoldAndBatch);
+}
+
+#[test]
+fn generate_distributed_batched_fri_inputs() {
+    generate_batched_fri_inputs(Mode::DistributedBatchedFri);
+}
+
+
+fn generate_batched_fri_inputs(mode: Mode) {
     for circuit_size_e in CIRCUIT_SIZES_E {
         for num_poly_e in NUM_POLY_E {
 
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
             let worker_domain_size = worker_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
             let num_poly = 1 << num_poly_e;
-            // let worker_last_poly_max_degree = worker_degree_bound / 4 - 1;  // parameter for Fold-and-Batch
-            let worker_last_poly_max_degree = worker_degree_bound - 1;  // parameter for Distributed Batched FRI
+
+            // Set worker_last_poly_max_degree depending on which batched FRI mode we're in.
+            let worker_last_poly_max_degree = match mode {
+                Mode::FoldAndBatch => worker_degree_bound / 4 - 1,
+                Mode::DistributedBatchedFri => worker_degree_bound - 1
+            };
     
             // Prepare the query positions. For simplicity, we draw some random integers 
             // instead of using Fiat-Shamir.
@@ -63,7 +81,7 @@ fn generate_batched_fri_inputs() {
             // ------------------------ Step 1: worker commit phase --------------------------
             // Each worker node executes the FRI commit phase on their local input polynomial.
             let (mut worker_nodes, worker_layer_commitments, batched_fri_inputs) = 
-            fold_and_batch_worker_commit(
+            fold_and_batch_worker_commit::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<Blake3>, MerkleTree<Blake3>>(
                 &inputs, 
                 num_poly, 
                 BLOWUP_FACTOR, 
@@ -78,7 +96,7 @@ fn generate_batched_fri_inputs() {
             // Each worker node generates the FRI folding proof proving that the folding of its local 
             // polynomial was done correctly.
             let (folding_proofs, worker_queried_evaluations) = 
-            fold_and_batch_worker_query::<BaseElement, Blake3, MerkleTree<_>, DefaultRandomCoin<_>>(
+            fold_and_batch_worker_query::<QuadExtension<BaseElement>, Blake3, MerkleTree<_>, DefaultRandomCoin<_>>(
                 &inputs, 
                 &mut worker_nodes, 
                 &query_positions
@@ -86,7 +104,14 @@ fn generate_batched_fri_inputs() {
             
 
             // Write the inputs for the master node to file.
-            let mut file = File::create(format!("./benches/input_data/fold_and_batch_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap();
+            let mut file = match mode {
+                Mode::DistributedBatchedFri => 
+                    // File::create(format!("/dev/shm/frittata/benches/input_data/distributed_batched_fri_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap(),
+                    File::create(format!("./benches/input_data/distributed_batched_fri_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap(),
+                Mode::FoldAndBatch => 
+                    // File::create(format!("/dev/shm/frittata/benches/input_data/fold_and_batch_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap()
+                    File::create(format!("./benches/input_data/fold_and_batch_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap()
+            };
             
             // Write the batched fri inputs.
             for eval_vec in batched_fri_inputs {

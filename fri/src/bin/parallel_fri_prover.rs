@@ -1,15 +1,15 @@
 use std::{env, fs::File};
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree};
-use math::fields::f128::BaseElement;
+use math::fields::{f128::BaseElement, QuadExtension};
 use utils::{Deserializable, ReadAdapter};
 use winter_fri::{DefaultProverChannel, FriOptions, FriProver};
 
 type Blake3 = Blake3_256<BaseElement>;
 
-static BLOWUP_FACTOR: usize = 8;
+static BLOWUP_FACTOR: usize = 4;
 static FOLDING_FACTOR: usize = 2;
-static NUM_QUERIES: usize = 50;
+static NUM_QUERIES: usize = 282;
 
 
 fn run_single_fri_prover(circuit_size_e: usize, num_poly_e: usize) {
@@ -25,13 +25,13 @@ fn run_single_fri_prover(circuit_size_e: usize, num_poly_e: usize) {
     let mut evaluations = Vec::with_capacity(evaluations_size);
 
     for _ in 0..evaluations_size {
-        let element = BaseElement::read_from(&mut reader).unwrap();
+        let element = QuadExtension::<BaseElement>::read_from(&mut reader).unwrap();
         evaluations.push(element);
     }
 
     // instantiate the prover and the prover channel
-    let mut channel = DefaultProverChannel::<BaseElement, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
-    let mut prover = FriProver::<_, _, _, MerkleTree<Blake3>>::new(options.clone());
+    let mut channel = DefaultProverChannel::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
+    let mut prover = FriProver::<QuadExtension<BaseElement>, _, Blake3, MerkleTree<Blake3>>::new(options.clone());
 
     prover.build_layers(&mut channel, evaluations.clone());
     let positions = channel.draw_query_positions(0);

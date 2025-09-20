@@ -1,5 +1,6 @@
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
+use math::fields::QuadExtension;
 use math::{fields::f128::BaseElement, FieldElement};
 use winter_fri::{fold_and_batch_master_commit, fold_and_batch_master_query, fold_and_batch_worker_commit, fold_and_batch_worker_query, DefaultProverChannel, FriOptions, FriProver};
 use std::io::Write;
@@ -17,10 +18,12 @@ type Blake3 = Blake3_256<BaseElement>;
 
 
 pub fn fold_and_batch_master(c: &mut Criterion) {
+    
     let mut folding_group = c.benchmark_group("master prover");
     folding_group.sample_size(10);
 
-    let mut file = File::create("./benches/bench_data/fold_and_batch_comm_cost").unwrap();
+    // let mut file = File::create("./benches/bench_data/distributed_batched_fri_comm_cost").unwrap();   // parameter for Distributed Batched FRI
+    let mut file = File::create("./benches/bench_data/fold_and_batch_comm_cost").unwrap();               // parameter for Fold-and-Batch
 
     for circuit_size_e in CIRCUIT_SIZES_E {
         for num_poly_e in NUM_POLY_E {
@@ -28,8 +31,8 @@ pub fn fold_and_batch_master(c: &mut Criterion) {
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
             let worker_domain_size = worker_degree_bound * BLOWUP_FACTOR;
 
+            // let worker_last_poly_max_degree = worker_degree_bound - 1;      // parameter for Distributed Batched FRI
             let worker_last_poly_max_degree = worker_degree_bound / 4 - 1;  // parameter for Fold-and-Batch
-            // let worker_last_poly_max_degree = worker_degree_bound - 1;   // parameter for Distributed Batched FRI
 
             let master_degree_bound : usize = worker_last_poly_max_degree + 1;
             let master_domain_size = master_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
@@ -68,7 +71,7 @@ pub fn fold_and_batch_master(c: &mut Criterion) {
             // Each worker node generates the FRI folding proof proving that the folding of its local 
             // polynomial was done correctly.
             let (folding_proofs, worker_evaluations) = 
-            fold_and_batch_worker_query::<BaseElement, Blake3, MerkleTree<_>, DefaultRandomCoin<_>>(&inputs, &mut worker_nodes, &query_positions);
+            fold_and_batch_worker_query::<QuadExtension<BaseElement>, Blake3, MerkleTree<_>, DefaultRandomCoin<_>>(&inputs, &mut worker_nodes, &query_positions);
 
 
             // Compute the total amount of communication in bytes between the workers and the master.
@@ -78,12 +81,12 @@ pub fn fold_and_batch_master(c: &mut Criterion) {
             };
             let batched_fri_inputs_size = {
                 let num_vec = batched_fri_inputs.len();
-                num_vec * batched_fri_inputs[0].len() * BaseElement::ELEMENT_BYTES
+                num_vec * batched_fri_inputs[0].len() * <QuadExtension<BaseElement>>::ELEMENT_BYTES
             };
             let folding_proofs_size = folding_proofs.iter().fold(0, |acc, proof| acc + proof.size()); 
             let worker_evaluations_size = {
                 let num_vec = worker_evaluations.len();
-                num_vec * worker_evaluations[0].len() * BaseElement::ELEMENT_BYTES
+                num_vec * worker_evaluations[0].len() * <QuadExtension<BaseElement>>::ELEMENT_BYTES
             };
             let query_positions_size = num_poly * query_positions.len() * size_of::<usize>();
             let total_communication_bytes = 
@@ -103,7 +106,7 @@ pub fn fold_and_batch_master(c: &mut Criterion) {
                     b.iter_batched(
                         || {
                             // Instantiate the master prover and its prover channel.
-                            let master_prover = FriProver::<BaseElement, DefaultProverChannel<BaseElement, Blake3, DefaultRandomCoin<_>>, Blake3, MerkleTree<_>>::new(master_options.clone());
+                            let master_prover = FriProver::<QuadExtension<BaseElement>, DefaultProverChannel<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>>, Blake3, MerkleTree<_>>::new(master_options.clone());
                             let master_prover_channel = DefaultProverChannel::new(master_domain_size, NUM_QUERIES);
                             (master_prover, master_prover_channel)
                         },

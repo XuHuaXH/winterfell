@@ -1,21 +1,28 @@
 use std::{env, fs::File};
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
-use math::fields::f128::BaseElement;
+use math::fields::{f128::BaseElement, QuadExtension};
 use utils::{Deserializable, ReadAdapter};
 use winter_fri::{DefaultProverChannel, FoldingOptions, FoldingProver};
 
 type Blake3 = Blake3_256<BaseElement>;
 
-static BLOWUP_FACTOR: usize = 8;
+static BLOWUP_FACTOR: usize = 4;
 static FOLDING_FACTOR: usize = 2;
-static NUM_QUERIES: usize = 50;
+static NUM_QUERIES: usize = 282;
 
+enum Mode {
+    DistributedBatchedFri,
+    FoldAndBatch
+}
 
-fn run_single_fold_and_batch_worker(circuit_size_e: usize, num_poly_e: usize) {
+fn run_single_distributed_fri_worker(circuit_size_e: usize, num_poly_e: usize, mode: Mode) {
     let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
-    let last_poly_max_degree = worker_degree_bound / 4 - 1;  // parameter for Fold-and-Batch
-    // let last_poly_max_degree = worker_degree_bound - 1;  // parameter for distributed batched FRI
+
+    let last_poly_max_degree = match mode {
+        Mode::DistributedBatchedFri => worker_degree_bound - 1,
+        Mode::FoldAndBatch => worker_degree_bound / 4 - 1
+    };
 
     let worker_domain_size = worker_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
     
@@ -33,7 +40,7 @@ fn run_single_fold_and_batch_worker(circuit_size_e: usize, num_poly_e: usize) {
         .expect("failed to draw query positions");
 
     let mut prover = FoldingProver::<_, _, _, MerkleTree<Blake3>>::new(options.clone());
-    let mut channel = DefaultProverChannel::<BaseElement, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
+    let mut channel = DefaultProverChannel::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
 
     // read the input evaluation vector from file
     let mut file = File::open(format!("./benches/input_data/fri_prover/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap();
@@ -42,7 +49,7 @@ fn run_single_fold_and_batch_worker(circuit_size_e: usize, num_poly_e: usize) {
     let mut evaluations = Vec::with_capacity(evaluations_size);
 
     for _ in 0..evaluations_size {
-        let element = BaseElement::read_from(&mut reader).unwrap();
+        let element = QuadExtension::<BaseElement>::read_from(&mut reader).unwrap();
         evaluations.push(element);
     }
 
@@ -57,6 +64,11 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let circuit_size_e = args[1].parse::<usize>().unwrap();
     let num_poly_e = args[2].parse::<usize>().unwrap();
+    let mode = &args[3];
 
-    run_single_fold_and_batch_worker(circuit_size_e, num_poly_e);
+    match mode.as_str() {
+        "distributed_batched_fri" => run_single_distributed_fri_worker(circuit_size_e, num_poly_e, Mode::DistributedBatchedFri),
+        "fold_and_batch" => run_single_distributed_fri_worker(circuit_size_e, num_poly_e, Mode::FoldAndBatch),
+        _ => unimplemented!("mode {} is not supported", mode)
+    }
 }

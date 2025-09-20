@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use crypto::{ElementHasher, Hasher, RandomCoin, VectorCommitment};
-use math::{FieldElement, StarkField};
+use math::FieldElement;
 #[cfg(feature = "concurrent")]
 use utils::iterators::*;
 use utils::{
@@ -217,7 +217,7 @@ pub fn fold_and_batch_worker_commit<E, H, R, V>(
     num_queries: usize
 ) -> (Vec<FoldingProver<E, DefaultProverChannel<E, H, R>, H, V>>, Vec<Vec<H::Digest>>, Vec<Vec<E>>)
 where 
-    E: FieldElement + StarkField,
+    E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
     R: RandomCoin<BaseField = E::BaseField, Hasher = H>,
     V: VectorCommitment<H>,
@@ -254,7 +254,7 @@ pub fn fold_and_batch_worker_query<E, H, V, R>(
     query_positions: &[usize],
 ) -> (Vec<FoldingProof>, Vec<Vec<E>>) 
 where 
-    E: FieldElement + StarkField,
+    E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
     R: RandomCoin<BaseField = E::BaseField, Hasher = H>,
     V: VectorCommitment<H>,
@@ -281,7 +281,7 @@ pub fn fold_and_batch_master_commit<E, H, V, R>(
     worker_domain_size: usize
 ) -> (Vec<E>, Vec<usize>)
 where 
-    E: FieldElement + StarkField,
+    E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
     V: VectorCommitment<H>,
     R: RandomCoin<BaseField = E::BaseField, Hasher = H>,
@@ -332,7 +332,7 @@ pub fn fold_and_batch_master_query<E, H, V, R>(
     batched_evaluations: Vec<E>
 ) -> FoldAndBatchProof<E, H>
 where
-    E: FieldElement + StarkField,
+    E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
     V: VectorCommitment<H>,
     R: RandomCoin<BaseField = E::BaseField, Hasher = H>,
@@ -376,7 +376,7 @@ pub fn fold_and_batch_prove<E, H, R, V>(
     num_queries: usize
 ) -> FoldAndBatchProof<E, H> 
 where 
-    E: FieldElement + StarkField,
+    E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
     R: RandomCoin<BaseField = E::BaseField, Hasher = H>,
     V: VectorCommitment<H>,

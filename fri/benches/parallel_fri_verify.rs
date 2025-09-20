@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, Hasher, MerkleTree, RandomCoin};
-use math::fields::f128::BaseElement;
+use math::fields::{f128::BaseElement, QuadExtension};
 use winter_fri::{DefaultProverChannel, DefaultVerifierChannel, FriOptions, FriProof, FriProver, FriVerifier};
 use std::{fs::File, hint::black_box, io::Write};
 
@@ -47,7 +47,7 @@ pub fn parallel_fri_verify(c: &mut Criterion) {
                         || {
                             for i in 0..num_poly {
                                 // Prepare the channel and public coin for the verifier.
-                                let mut channel = black_box(DefaultVerifierChannel::<BaseElement, Blake3, MerkleTree<Blake3>>::new(
+                                let mut channel = black_box(DefaultVerifierChannel::<QuadExtension<BaseElement>, Blake3, MerkleTree<Blake3>>::new(
                                     proofs[i].clone(),
                                     commitments[i].clone(),
                                     worker_domain_size,
@@ -77,10 +77,10 @@ criterion_main!(parallel_fri_verifier_group);
 // ================================================================================================
 
 /// Generate a FRI proof for each one of the input evaluation vectors in `inputs`.
-fn generate_fri_proofs(inputs: Vec<Vec<BaseElement>>, domain_size: usize, options: &FriOptions) 
+fn generate_fri_proofs(inputs: Vec<Vec<QuadExtension<BaseElement>>>, domain_size: usize, options: &FriOptions) 
 -> (Vec<FriProof>, 
-    Vec<Vec<<Blake3_256<BaseElement> as Hasher>::Digest>>,
-    Vec<Vec<BaseElement>>
+    Vec<Vec<<Blake3 as Hasher>::Digest>>,
+    Vec<Vec<QuadExtension<BaseElement>>>
 ) {
     let num_poly = inputs.len();
     let mut proofs = Vec::with_capacity(num_poly);
@@ -89,7 +89,7 @@ fn generate_fri_proofs(inputs: Vec<Vec<BaseElement>>, domain_size: usize, option
 
     for input in inputs {
         // instantiate the prover and the prover channel
-        let mut channel = DefaultProverChannel::<BaseElement, Blake3, DefaultRandomCoin<_>>::new(domain_size, NUM_QUERIES);
+        let mut channel = DefaultProverChannel::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>>::new(domain_size, NUM_QUERIES);
         let mut prover = FriProver::<_, _, _, MerkleTree<Blake3>>::new(options.clone());
 
         prover.build_layers(&mut channel, input.clone());
