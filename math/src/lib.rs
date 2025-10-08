@@ -87,7 +87,7 @@
 //!
 //! Number of threads can be configured via `RAYON_NUM_THREADS` environment variable
 
-#![no_std]
+// #![no_std]
 
 #[macro_use]
 extern crate alloc;

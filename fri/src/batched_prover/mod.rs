@@ -1,5 +1,4 @@
 use alloc::vec::Vec;
-use math::StarkField;
 use utils::{
     flatten_vector_elements, group_slice_elements, transpose_slice};
 use crypto::{Hasher, RandomCoin};
@@ -19,7 +18,7 @@ mod tests;
 
 pub struct BatchedFriProver<E, H, V, R>
 where
-    E: FieldElement + StarkField,
+    E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
     V: VectorCommitment<H>,
     R: RandomCoin<BaseField = E::BaseField, Hasher = H>
@@ -31,7 +30,7 @@ where
 
 impl<E, H, V, R> BatchedFriProver<E, H, V, R>
 where
-    E: FieldElement + StarkField,
+    E: FieldElement,
     H: ElementHasher<BaseField = E::BaseField>,
     V: VectorCommitment<H>,
     R: RandomCoin<BaseField = E::BaseField, Hasher = H>

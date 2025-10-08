@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
-use math::{fft, fields::f128::BaseElement, FieldElement, StarkField};
+use math::{fft, fields::{f128::BaseElement, QuadExtension}, FieldElement};
 use rand_utils::rand_vector;
 use utils::{Deserializable, Serializable, SliceReader};
 
@@ -128,7 +128,7 @@ fn test_fold_and_batch_worker_folds_twice() {
 
 fn build_evaluations_from_random_poly<E>(degree_bound: usize, lde_blowup: usize) -> Vec<E> 
 where 
-    E: FieldElement + StarkField
+    E: FieldElement
 {
     // Generates a random vector which represents the coefficients of a random polynomial 
     // with degree < degree_bound
@@ -139,7 +139,7 @@ where
     p.resize(domain_size, E::ZERO);
 
     // transforms the polynomial from coefficient form to evaluation form in place
-    let twiddles = fft::get_twiddles::<E>(domain_size);
+    let twiddles = fft::get_twiddles::<E::BaseField>(domain_size);
     fft::evaluate_poly(&mut p, &twiddles);
 
     p
@@ -175,10 +175,10 @@ fn fold_and_batch_worker_prove(
 
     // Instantiate a worker node.
     let worker_options = FoldingOptions::new(lde_blowup, folding_factor, worker_domain_size, worker_last_poly_max_degree);
-    let mut worker_node = FoldingProver::<BaseElement, DefaultProverChannel<_, _, _>, Blake3, MerkleTree<_>>::new(worker_options);
+    let mut worker_node = FoldingProver::<QuadExtension<BaseElement>, DefaultProverChannel<_, _, _>, Blake3, MerkleTree<_>>::new(worker_options);
 
     // Prepare a ProverChannel for the worker node
-    let mut worker_channel = DefaultProverChannel::<BaseElement, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, num_queries);
+    let mut worker_channel = DefaultProverChannel::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, num_queries);
        
     // Execute the commit phase for the worker node.
     let _ = worker_node.build_layers(&mut worker_channel, inputs.clone());
@@ -227,7 +227,7 @@ fn fold_and_batch_prove_verify_random(
         inputs.push(build_evaluations_from_random_poly(worker_degree_bound, lde_blowup));
     }
 
-    let fold_and_batch_proof = fold_and_batch_prove::<BaseElement, Blake3, DefaultRandomCoin<_>, MerkleTree<_>>(
+    let fold_and_batch_proof = fold_and_batch_prove::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>, MerkleTree<_>>(
         inputs,
         num_poly, 
         lde_blowup, 
@@ -249,7 +249,7 @@ fn fold_and_batch_prove_verify_random(
 
     // Instantiate the Fold-and-Batch verifier.
     let public_coin = DefaultRandomCoin::<Blake3>::new(&[]);
-    let mut verifier = FoldAndBatchVerifier::<BaseElement, DefaultVerifierChannel<BaseElement, _, MerkleTree<Blake3>>, _, DefaultRandomCoin<_>, _>::new(public_coin, num_queries, master_options, worker_degree_bound, master_degree_bound)?;
+    let mut verifier = FoldAndBatchVerifier::<QuadExtension<BaseElement>, DefaultVerifierChannel<QuadExtension<BaseElement>, _, MerkleTree<Blake3>>, _, DefaultRandomCoin<_>, _>::new(public_coin, num_queries, master_options, worker_degree_bound, master_degree_bound)?;
     
     // Verify the Fold-and-Batch proof.
     verifier.verify_fold_and_batch(&fold_and_batch_proof)?;

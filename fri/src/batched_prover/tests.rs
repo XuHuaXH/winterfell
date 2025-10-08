@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
-use math::{fft, fields::f128::BaseElement, FieldElement};
+use math::{fft, fields::{f128::BaseElement, QuadExtension}, FieldElement};
 use rand_utils::rand_vector;
 use utils::{Deserializable, Serializable, SliceReader};
 use super::{BatchedFriProver, combine_poly_evaluations};
@@ -98,14 +98,14 @@ fn test_combine_poly_evaluations() {
 // TEST UTILS
 // ================================================================================================
 
-fn build_evaluations_from_random_poly(degree_bound: usize, lde_blowup: usize) -> Vec<BaseElement> {
+fn build_evaluations_from_random_poly(degree_bound: usize, lde_blowup: usize) -> Vec<QuadExtension<BaseElement>> {
     // Generates a random vector which represents the coefficients of a random polynomial 
     // with degree < degree_bound.
-    let mut p = rand_vector::<BaseElement>(degree_bound);
+    let mut p = rand_vector::<QuadExtension<BaseElement>>(degree_bound);
 
     // Allocate space for the evaluation form of the polynomial p.
     let domain_size = degree_bound * lde_blowup;
-    p.resize(domain_size, BaseElement::ZERO);
+    p.resize(domain_size, <QuadExtension<BaseElement>>::ZERO);
 
     // Transforms the polynomial from coefficient form to evaluation form in place.
     let twiddles = fft::get_twiddles::<BaseElement>(domain_size);
@@ -138,7 +138,7 @@ fn fri_prove_verify_random(
     }
 
     // Instantiate the prover and generate the proof
-    let mut prover = BatchedFriProver::<BaseElement, Blake3, MerkleTree<Blake3>, DefaultRandomCoin<Blake3>>::new(options.clone());
+    let mut prover = BatchedFriProver::<QuadExtension<BaseElement>, Blake3, MerkleTree<Blake3>, DefaultRandomCoin<Blake3>>::new(options.clone());
     let batched_fri_proof = prover.build_proof(&mut inputs, domain_size, num_queries);
 
     // Test proof serialization / deserialization
@@ -150,6 +150,6 @@ fn fri_prove_verify_random(
 
     // Make sure the proof can be verified
     let public_coin = DefaultRandomCoin::<Blake3>::new(&[]);
-    let mut verifier = BatchedFriVerifier::<BaseElement, DefaultVerifierChannel<BaseElement, _, MerkleTree<Blake3>>, _, DefaultRandomCoin<_>, _>::new(public_coin, num_queries, options, degree_bound)?;
+    let mut verifier = BatchedFriVerifier::<QuadExtension<BaseElement>, DefaultVerifierChannel<QuadExtension<BaseElement>, _, MerkleTree<Blake3>>, _, DefaultRandomCoin<_>, _>::new(public_coin, num_queries, options, degree_bound)?;
     verifier.verify(&batched_fri_proof)
 }

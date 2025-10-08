@@ -1,15 +1,15 @@
-use std::{env, fs::File};
+use std::{env, io::Read};
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree};
-use math::fields::f128::BaseElement;
-use utils::{Deserializable, ReadAdapter};
+use math::fields::{f128::BaseElement, QuadExtension};
+use utils::{Deserializable, SliceReader};
 use winter_fri::{DefaultProverChannel, FriOptions, FriProver};
 
 type Blake3 = Blake3_256<BaseElement>;
 
-static BLOWUP_FACTOR: usize = 8;
+static BLOWUP_FACTOR: usize = 4;
 static FOLDING_FACTOR: usize = 2;
-static NUM_QUERIES: usize = 50;
+static NUM_QUERIES: usize = 282;
 
 
 fn run_single_fri_prover(circuit_size_e: usize, num_poly_e: usize) {
@@ -18,20 +18,28 @@ fn run_single_fri_prover(circuit_size_e: usize, num_poly_e: usize) {
     let worker_domain_size = worker_degree_bound * BLOWUP_FACTOR;
     let options = FriOptions::new(BLOWUP_FACTOR, FOLDING_FACTOR, max_remainder_degree);
 
-    // read the input evaluation vector from file
-    let mut file = File::open(format!("./benches/input_data/fri_prover/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap();
-    let mut reader = ReadAdapter::new(&mut file);
+    // Read the input evaluation vector from stdin
+    let mut file = std::io::stdin();
+
     let evaluations_size = worker_domain_size;
     let mut evaluations = Vec::with_capacity(evaluations_size);
 
     for _ in 0..evaluations_size {
-        let element = BaseElement::read_from(&mut reader).unwrap();
+        let mut buf = [0u8; 32]; 
+        file.read_exact(&mut buf).unwrap();
+        let mut reader = SliceReader::new(&buf);
+        let element = QuadExtension::<BaseElement>::read_from(&mut reader).unwrap();
         evaluations.push(element);
     }
 
+    // check if we've read all the bytes
+    if file.bytes().next().is_some() {
+        panic!("Uncomsumed bytes in the batched fri input file");
+    }
+
     // instantiate the prover and the prover channel
-    let mut channel = DefaultProverChannel::<BaseElement, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
-    let mut prover = FriProver::<_, _, _, MerkleTree<Blake3>>::new(options.clone());
+    let mut channel = DefaultProverChannel::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
+    let mut prover = FriProver::<QuadExtension<BaseElement>, _, Blake3, MerkleTree<Blake3>>::new(options.clone());
 
     prover.build_layers(&mut channel, evaluations.clone());
     let positions = channel.draw_query_positions(0);

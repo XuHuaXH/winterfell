@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
-use math::fields::f128::BaseElement;
+use math::fields::{f128::BaseElement, QuadExtension};
 use winter_fri::{fold_and_batch_prove, DefaultVerifierChannel, FoldAndBatchVerifier, FriOptions};
 use std::{fs::File, hint::black_box, io::Write};
 
@@ -14,10 +14,12 @@ use utils::build_evaluations_from_random_poly;
 
 
 pub fn fold_and_batch_verifier(c: &mut Criterion) {
+
     let mut verifier_group = c.benchmark_group("verifier");
     verifier_group.sample_size(10);
 
-    let mut file = File::create("./benches/bench_data/fold_and_batch_proof_size").unwrap();
+    // let mut file = File::create("./benches/bench_data/distributed_batched_fri_proof_size").unwrap(); // parameter for Distributed Batched FRI
+    let mut file = File::create("./benches/bench_data/quad_15_FAB/fold_and_batch_proof_size").unwrap();          // parameter for Fold-and-Batch
 
     for &circuit_size_e in &CIRCUIT_SIZES_E {
         for &num_poly_e in &NUM_POLY_E {
@@ -25,8 +27,8 @@ pub fn fold_and_batch_verifier(c: &mut Criterion) {
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
             let worker_domain_size = worker_degree_bound * BLOWUP_FACTOR;
 
-            // let worker_last_poly_max_degree = worker_degree_bound / 4 - 1;  // parameter for Fold-and-Batch
-            let worker_last_poly_max_degree = worker_degree_bound - 1;   // parameter for Distributed Batched FRI
+            // let worker_last_poly_max_degree = worker_degree_bound - 1;        // parameter for Distributed Batched FRI
+            let worker_last_poly_max_degree = worker_degree_bound / 4 - 1; // parameter for Fold-and-Batch
 
             let master_degree_bound : usize = worker_last_poly_max_degree + 1;
             let master_domain_size = master_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
@@ -40,7 +42,7 @@ pub fn fold_and_batch_verifier(c: &mut Criterion) {
                 inputs.push(build_evaluations_from_random_poly(worker_degree_bound, BLOWUP_FACTOR));
             }
 
-            let proof = fold_and_batch_prove::<BaseElement, Blake3, DefaultRandomCoin<_>, MerkleTree<_>>(
+            let proof = fold_and_batch_prove::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>, MerkleTree<_>>(
                 inputs.clone(),
                 num_poly, 
                 BLOWUP_FACTOR,
@@ -64,7 +66,7 @@ pub fn fold_and_batch_verifier(c: &mut Criterion) {
                             DefaultRandomCoin::<Blake3_256<_>>::new(&[])
                         },
                         |public_coin| {
-                            let mut verifier = black_box(FoldAndBatchVerifier::<BaseElement, DefaultVerifierChannel<BaseElement, _, MerkleTree<Blake3_256<_>>>, _, DefaultRandomCoin<_>, _>::new(public_coin, NUM_QUERIES, master_options.clone(), worker_degree_bound, master_degree_bound).unwrap());
+                            let mut verifier = black_box(FoldAndBatchVerifier::<QuadExtension<BaseElement>, DefaultVerifierChannel<QuadExtension<BaseElement>, _, MerkleTree<Blake3>>, _, DefaultRandomCoin<_>, _>::new(public_coin, NUM_QUERIES, master_options.clone(), worker_degree_bound, master_degree_bound).unwrap());
         
                             // Verify the Fold-and-Batch proof.
                             let result = verifier.verify_fold_and_batch(black_box(&proof));

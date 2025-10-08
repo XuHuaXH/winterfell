@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree};
-use math::fields::f128::BaseElement;
+use math::fields::{f128::BaseElement, QuadExtension};
 use winter_fri::{DefaultProverChannel, FriOptions, FriProver};
 use std::hint::black_box;
 
@@ -35,7 +35,7 @@ pub fn parallel_fri_prover(c: &mut Criterion) {
                     b.iter_batched(
                         || {
                             // instantiate the prover and the prover channel
-                            let channel = DefaultProverChannel::<BaseElement, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
+                            let channel = DefaultProverChannel::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<_>>::new(worker_domain_size, NUM_QUERIES);
                             let prover = FriProver::<_, _, _, MerkleTree<Blake3>>::new(options.clone());
                             (channel, prover)
                         },
