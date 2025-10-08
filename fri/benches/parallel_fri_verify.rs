@@ -17,7 +17,7 @@ pub fn parallel_fri_verify(c: &mut Criterion) {
     let mut folding_group = c.benchmark_group("parallel fri verifier");
     folding_group.sample_size(10);
 
-    let mut file = File::create("./benches/bench_data/parallel_fri_proof_size").unwrap();
+    let mut file = File::create("./benches/bench_data/quad_15_para/parallel_fri_proof_size").unwrap();
 
     for circuit_size_e in CIRCUIT_SIZES_E {
         for num_poly_e in NUM_POLY_E {

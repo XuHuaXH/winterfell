@@ -2,7 +2,7 @@ use std::fs::File;
 
 use crypto::{hashers::Blake3_256, DefaultRandomCoin, MerkleTree, RandomCoin};
 use math::fields::{f128::BaseElement, QuadExtension};
-use ::utils::{ByteWriter, Serializable};
+use ::utils::Serializable;
 
 mod config;
 use config::{BLOWUP_FACTOR, NUM_QUERIES, FOLDING_FACTOR, CIRCUIT_SIZES_E, NUM_POLY_E};
@@ -26,7 +26,7 @@ fn generate_fri_inputs() {
             let evaluations = build_evaluations(worker_domain_size, BLOWUP_FACTOR);
 
             // write the input to file
-            let mut file = File::create(format!("./benches/input_data/fri_prover/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap();
+            let mut file = File::create(format!("/dev/shm/frittata/fri_prover/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap();
             for element in evaluations {
                 element.write_into(&mut file);
             }
@@ -101,19 +101,12 @@ fn generate_batched_fri_inputs(mode: Mode) {
                 &mut worker_nodes, 
                 &query_positions
             );
-            
+        
 
-            // Write the inputs for the master node to file.
-            let mut file = match mode {
-                Mode::DistributedBatchedFri => 
-                    // File::create(format!("/dev/shm/frittata/benches/input_data/distributed_batched_fri_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap(),
-                    File::create(format!("./benches/input_data/distributed_batched_fri_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap(),
-                Mode::FoldAndBatch => 
-                    // File::create(format!("/dev/shm/frittata/benches/input_data/fold_and_batch_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap()
-                    File::create(format!("./benches/input_data/fold_and_batch_master/circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)).unwrap()
-            };
-            
-            // Write the batched fri inputs.
+            // write to stdout for easier piping into other commands
+            let mut file = std::io::stdout();
+
+             // Write the batched fri inputs.
             for eval_vec in batched_fri_inputs {
                 for element in eval_vec {
                     element.write_into(&mut file);
@@ -121,13 +114,25 @@ fn generate_batched_fri_inputs(mode: Mode) {
             }
 
             // Write the worker layer commitments.
-            file.write_many(worker_layer_commitments);
-
-            // Write the folding proofs
-            file.write_many(folding_proofs);
+            for layer_commitment_vec in &worker_layer_commitments {
+                for element in layer_commitment_vec {
+                    element.write_into(&mut file);
+                }
+            }
 
             // write the worker queried evaluations.
-            file.write_many(worker_queried_evaluations);
+            for queried_eval_vec in &worker_queried_evaluations {
+                for i in 0..queried_eval_vec.len() {
+                    queried_eval_vec[i].write_into(&mut file);
+                }
+            }
+
+            // Write the folding proofs
+            {
+                for folding_proof in &folding_proofs {
+                    folding_proof.write_into(&mut file);
+                }
+            }
         }
     }
 }

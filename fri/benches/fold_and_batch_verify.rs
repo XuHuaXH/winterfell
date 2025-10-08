@@ -19,7 +19,7 @@ pub fn fold_and_batch_verifier(c: &mut Criterion) {
     verifier_group.sample_size(10);
 
     // let mut file = File::create("./benches/bench_data/distributed_batched_fri_proof_size").unwrap(); // parameter for Distributed Batched FRI
-    let mut file = File::create("./benches/bench_data/fold_and_batch_proof_size").unwrap();          // parameter for Fold-and-Batch
+    let mut file = File::create("./benches/bench_data/quad_15_FAB/fold_and_batch_proof_size").unwrap();          // parameter for Fold-and-Batch
 
     for &circuit_size_e in &CIRCUIT_SIZES_E {
         for &num_poly_e in &NUM_POLY_E {
