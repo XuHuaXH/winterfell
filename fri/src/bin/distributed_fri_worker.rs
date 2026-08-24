@@ -25,14 +25,14 @@ fn run_single_distributed_fri_worker(circuit_size_e: usize, num_poly_e: usize, m
     };
 
     let worker_domain_size = worker_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
-    
+
     let options = FoldingOptions::new(
-        BLOWUP_FACTOR, 
-        FOLDING_FACTOR, 
-        worker_domain_size, 
+        BLOWUP_FACTOR,
+        FOLDING_FACTOR,
+        worker_domain_size,
         last_poly_max_degree);
 
-    // Prepare the query positions. For simplicity, we draw some random integers 
+    // Prepare the query positions. For simplicity, we draw some random integers
     // instead of using Fiat-Shamir.
     let mut public_coin = DefaultRandomCoin::<Blake3>::new(&[]);
     let query_positions = public_coin
@@ -44,12 +44,12 @@ fn run_single_distributed_fri_worker(circuit_size_e: usize, num_poly_e: usize, m
 
     // read input data from stdin
     let mut file = std::io::stdin();
-    
+
     let evaluations_size = worker_domain_size;
     let mut evaluations = Vec::with_capacity(evaluations_size);
 
     for _ in 0..evaluations_size {
-        let mut buf = [0u8; 32]; 
+        let mut buf = [0u8; 32];
         file.read_exact(&mut buf).unwrap();
         let mut reader = SliceReader::new(&buf);
         let element = QuadExtension::<BaseElement>::read_from(&mut reader).unwrap();
@@ -63,7 +63,6 @@ fn run_single_distributed_fri_worker(circuit_size_e: usize, num_poly_e: usize, m
 
     let _ = prover.build_layers(&mut channel, evaluations.clone());
     let _ = prover.build_proof(&evaluations, &query_positions);
-    
 }
 
 

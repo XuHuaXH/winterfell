@@ -31,7 +31,7 @@ fn run_distributed_fri_master(circuit_size_e: usize, num_poly_e: usize, mode: Mo
     let num_poly = 1 << num_poly_e;
     let master_options = FriOptions::new(BLOWUP_FACTOR, FOLDING_FACTOR, MASTER_MAX_REMAINDER_DEGREE);
 
-    // Prepare the query positions. For simplicity, we draw some random integers 
+    // Prepare the query positions. For simplicity, we draw some random integers
     // instead of using Fiat-Shamir.
     let mut public_coin = DefaultRandomCoin::<Blake3>::new(&[]);
     let query_positions = public_coin
@@ -51,7 +51,7 @@ fn run_distributed_fri_master(circuit_size_e: usize, num_poly_e: usize, mode: Mo
     for _ in 0..num_poly {
         let mut eval_vec = Vec::with_capacity(evaluations_size);
         for _ in 0..evaluations_size {
-            let mut buf = [0u8; 32]; 
+            let mut buf = [0u8; 32];
             file.read_exact(&mut buf).unwrap();
             let mut reader = SliceReader::new(&buf);
             let element = QuadExtension::<BaseElement>::read_from(&mut reader).unwrap();
@@ -65,7 +65,7 @@ fn run_distributed_fri_master(circuit_size_e: usize, num_poly_e: usize, mode: Mo
     for _ in 0..num_poly {
         let mut layer_commitment_vec = Vec::with_capacity(num_worker_layers);
         for _ in 0..num_worker_layers {
-            let mut buf = [0u8; 32]; 
+            let mut buf = [0u8; 32];
             file.read_exact(&mut buf).unwrap();
             let mut reader = SliceReader::new(&buf);
             layer_commitment_vec.push(Blake3Digest::read_from(&mut reader).unwrap());
@@ -77,7 +77,7 @@ fn run_distributed_fri_master(circuit_size_e: usize, num_poly_e: usize, mode: Mo
     for _ in 0..num_poly {
         let mut queried_eval_vec = Vec::with_capacity(NUM_QUERIES);
         for _ in 0..NUM_QUERIES {
-            let mut buf = [0u8; 32]; 
+            let mut buf = [0u8; 32];
             file.read_exact(&mut buf).unwrap();
             let mut reader = SliceReader::new(&buf);
             let element = QuadExtension::<BaseElement>::read_from(&mut reader).unwrap();
@@ -87,7 +87,7 @@ fn run_distributed_fri_master(circuit_size_e: usize, num_poly_e: usize, mode: Mo
     }
 
     // Read the folding proofs.
-    let mut buf = Vec::<u8>::new(); 
+    let mut buf = Vec::<u8>::new();
     file.read_to_end(&mut buf).unwrap();
     let mut reader = SliceReader::new(&buf);
     for _ in 0..num_poly {
@@ -113,13 +113,13 @@ fn run_distributed_fri_master(circuit_size_e: usize, num_poly_e: usize, mode: Mo
         worker_domain_size);
 
     let _ = fold_and_batch_master_query(
-        &mut master_prover, 
+        &mut master_prover,
         &master_prover_channel,
-        worker_domain_size, 
-        master_domain_size, 
+        worker_domain_size,
+        master_domain_size,
         worker_layer_commitments,
         query_positions,
-        folding_proofs, 
+        folding_proofs,
         worker_queried_evaluations,
         batched_evaluations);
 

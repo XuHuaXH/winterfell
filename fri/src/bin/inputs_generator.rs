@@ -16,8 +16,20 @@ pub static BLOWUP_FACTOR: usize = 4;
 pub static FOLDING_FACTOR: usize = 2;
 pub static NUM_QUERIES: usize = 282;
 
-
-fn generate_fri_inputs(circuit_size_e: usize, num_poly_e: usize) {
+/// Generates a random input for a single FRI worker node. The generated input is written
+/// to stdout. This input is used for benchmarking a single folding worker in all three FRI
+/// modes:
+///     - parallel fri
+///     - fold-and-batch
+///     - distributed batched FRI
+///
+/// circuit_size_e: the circuit size in exponent form (i.e. circuit size = 2^circuit_size_e)
+/// num_poly_e: the number of polynomials in exponent form (i.e. number of polynomials = 2^num_poly_e).
+/// The number of polynomials is the same as the number of prover machines.
+///
+/// Since the circuit is split evenly into 2^num_poly_e parts and distributed to 2^num_poly_e prover
+/// machines, the input polynomial size for a single worker node is 2^(circuit_size_e - num_poly_e).
+fn generate_fri_worker_inputs(circuit_size_e: usize, num_poly_e: usize) {
     let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
     let worker_domain_size = worker_degree_bound.next_power_of_two() * BLOWUP_FACTOR;
 
@@ -37,13 +49,29 @@ enum Mode {
     DistributedBatchedFri,
 }
 
-
-fn generate_fold_and_batch_inputs(circuit_size_e: usize, num_poly_e: usize) {
+/// Generates random inputs for a fold-and-batch master node. The generated input is written
+/// to stdout.
+///
+/// circuit_size_e: the circuit size in exponent form (i.e. circuit size = 2^circuit_size_e)
+/// num_poly_e: the number of polynomials in exponent form (i.e. number of polynomials = 2^num_poly_e).
+/// The number of polynomials is the same as the number of prover machines.
+///
+/// Since the circuit is split evenly into 2^num_poly_e parts and distributed to 2^num_poly_e prover
+/// machines, the input polynomial size for a single worker node is 2^(circuit_size_e - num_poly_e).
+fn generate_fold_and_batch_master_inputs(circuit_size_e: usize, num_poly_e: usize) {
     generate_batched_fri_inputs(circuit_size_e, num_poly_e, Mode::FoldAndBatch);
 }
 
-
-fn generate_distributed_batched_fri_inputs(circuit_size_e: usize, num_poly_e: usize) {
+/// Generates random inputs for a distributed batched FRI master node. The generated input is written
+/// to stdout.
+///
+/// circuit_size_e: the circuit size in exponent form (i.e. circuit size = 2^circuit_size_e)
+/// num_poly_e: the number of polynomials in exponent form (i.e. number of polynomials = 2^num_poly_e).
+/// The number of polynomials is the same as the number of prover machines.
+///
+/// Since the circuit is split evenly into 2^num_poly_e parts and distributed to 2^num_poly_e prover
+/// machines, the input polynomial size for a single worker node is 2^(circuit_size_e - num_poly_e).
+fn generate_distributed_batched_fri_master_inputs(circuit_size_e: usize, num_poly_e: usize) {
     generate_batched_fri_inputs(circuit_size_e, num_poly_e, Mode::DistributedBatchedFri);
 }
 
@@ -59,7 +87,7 @@ fn generate_batched_fri_inputs(circuit_size_e: usize, num_poly_e: usize, mode: M
         Mode::DistributedBatchedFri => worker_degree_bound - 1
     };
 
-    // Prepare the query positions. For simplicity, we draw some random integers 
+    // Prepare the query positions. For simplicity, we draw some random integers
     // instead of using Fiat-Shamir.
     let mut public_coin = DefaultRandomCoin::<Blake3>::new(&[]);
     let query_positions = public_coin
@@ -74,33 +102,33 @@ fn generate_batched_fri_inputs(circuit_size_e: usize, num_poly_e: usize, mode: M
 
     // ------------------------ Step 1: worker commit phase --------------------------
     // Each worker node executes the FRI commit phase on their local input polynomial.
-    let (mut worker_nodes, worker_layer_commitments, batched_fri_inputs) = 
+    let (mut worker_nodes, worker_layer_commitments, batched_fri_inputs) =
     fold_and_batch_worker_commit::<QuadExtension<BaseElement>, Blake3, DefaultRandomCoin<Blake3>, MerkleTree<Blake3>>(
-        &inputs, 
-        num_poly, 
-        BLOWUP_FACTOR, 
-        FOLDING_FACTOR, 
-        worker_domain_size, 
-        worker_last_poly_max_degree, 
+        &inputs,
+        num_poly,
+        BLOWUP_FACTOR,
+        FOLDING_FACTOR,
+        worker_domain_size,
+        worker_last_poly_max_degree,
         NUM_QUERIES
     );
-    
+
 
     // -------------------------- Step 3: worker query phase --------------------------------
-    // Each worker node generates the FRI folding proof proving that the folding of its local 
+    // Each worker node generates the FRI folding proof proving that the folding of its local
     // polynomial was done correctly.
-    let (folding_proofs, worker_queried_evaluations) = 
+    let (folding_proofs, worker_queried_evaluations) =
     fold_and_batch_worker_query::<QuadExtension<BaseElement>, Blake3, MerkleTree<_>, DefaultRandomCoin<_>>(
-        &inputs, 
-        &mut worker_nodes, 
+        &inputs,
+        &mut worker_nodes,
         &query_positions
     );
-    
+
 
     // write to stdout for piping into the reader program
     let mut file = std::io::stdout();
 
-        // Write the batched fri inputs.
+    // Write the batched fri inputs.
     for eval_vec in batched_fri_inputs {
         for element in eval_vec {
             element.write_into(&mut file);
@@ -122,10 +150,8 @@ fn generate_batched_fri_inputs(circuit_size_e: usize, num_poly_e: usize, mode: M
     }
 
     // Write the folding proofs
-    {
-        for folding_proof in &folding_proofs {
-            folding_proof.write_into(&mut file);
-        }
+    for folding_proof in &folding_proofs {
+        folding_proof.write_into(&mut file);
     }
 }
 
@@ -148,9 +174,15 @@ fn main() {
     let mode = &args[3];
 
     match mode.as_str() {
-        "distributed_batched_fri" => generate_distributed_batched_fri_inputs(circuit_size_e, num_poly_e),
-        "fold_and_batch" => generate_fold_and_batch_inputs(circuit_size_e, num_poly_e),
-        "parallel_fri" => generate_fri_inputs(circuit_size_e, num_poly_e),
+        // Distributed batched FRI mode
+        "distributed_batched_fri_worker" => generate_fri_worker_inputs(circuit_size_e, num_poly_e),
+        "distributed_batched_fri_master" => generate_distributed_batched_fri_master_inputs(circuit_size_e, num_poly_e),
+        // Fold-and-batch mode
+        "fold_and_batch_worker" => generate_fri_worker_inputs(circuit_size_e, num_poly_e),
+        "fold_and_batch_master" => generate_fold_and_batch_master_inputs(circuit_size_e, num_poly_e),
+        // Parallel FRI mode
+        "parallel_fri" => generate_fri_worker_inputs(circuit_size_e, num_poly_e),
+        // Unrecognized mode
         _ => unimplemented!("mode {} is not supported", mode),
     }
 

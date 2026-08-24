@@ -5,7 +5,7 @@ use winter_fri::{DefaultProverChannel, DefaultVerifierChannel, FriOptions, FriPr
 use std::{fs::File, hint::black_box, io::Write};
 
 mod config;
-use config::{BLOWUP_FACTOR, CIRCUIT_SIZES_E, FOLDING_FACTOR, NUM_POLY_E, NUM_QUERIES};
+use config::{BLOWUP_FACTOR, FOLDING_FACTOR, NUM_QUERIES, parse_circuit_size_e, parse_num_poly_e};
 
 mod utils;
 use utils::build_evaluations;
@@ -17,10 +17,11 @@ pub fn parallel_fri_verify(c: &mut Criterion) {
     let mut folding_group = c.benchmark_group("parallel fri verifier");
     folding_group.sample_size(10);
 
-    let mut file = File::create("./benches/bench_data/quad_15_para/parallel_fri_proof_size").unwrap();
+    std::fs::create_dir_all(concat!(env!("CARGO_MANIFEST_DIR"), "/benches/bench_data")).unwrap();
+    let mut file = File::create(concat!(env!("CARGO_MANIFEST_DIR"), "/benches/bench_data/parallel_fri_proof_size")).unwrap();
 
-    for circuit_size_e in CIRCUIT_SIZES_E {
-        for num_poly_e in NUM_POLY_E {
+    for circuit_size_e in parse_circuit_size_e() {
+        for num_poly_e in parse_num_poly_e() {
 
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
             let max_remainder_degree = 0;
@@ -66,7 +67,7 @@ pub fn parallel_fri_verify(c: &mut Criterion) {
                     );
                 },
             );
-        }   
+        }
     }
 }
 
@@ -77,8 +78,8 @@ criterion_main!(parallel_fri_verifier_group);
 // ================================================================================================
 
 /// Generate a FRI proof for each one of the input evaluation vectors in `inputs`.
-fn generate_fri_proofs(inputs: Vec<Vec<QuadExtension<BaseElement>>>, domain_size: usize, options: &FriOptions) 
--> (Vec<FriProof>, 
+fn generate_fri_proofs(inputs: Vec<Vec<QuadExtension<BaseElement>>>, domain_size: usize, options: &FriOptions)
+-> (Vec<FriProof>,
     Vec<Vec<<Blake3 as Hasher>::Digest>>,
     Vec<Vec<QuadExtension<BaseElement>>>
 ) {

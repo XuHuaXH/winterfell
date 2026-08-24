@@ -24,15 +24,15 @@ name = "folding"
 harness = false
 
 [[bench]]
-name = "fold_and_batch_folding"
+name = "distributed_worker"
 harness = false
 
 [[bench]]
-name = "fold_and_batch_master"
+name = "distributed_master"
 harness = false
 
 [[bench]]
-name = "fold_and_batch_verify"
+name = "distributed_verify"
 harness = false
 
 [[bench]]

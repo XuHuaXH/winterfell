@@ -6,7 +6,7 @@ use winter_fri::{DefaultProverChannel, FoldingOptions, FoldingProver};
 use std::{hint::black_box};
 
 mod config;
-use config::{BLOWUP_FACTOR, CIRCUIT_SIZES_E, FOLDING_FACTOR, NUM_POLY_E, NUM_QUERIES};
+use config::{BLOWUP_FACTOR, FOLDING_FACTOR, NUM_QUERIES, FriMode, parse_fri_mode, parse_circuit_size_e, parse_num_poly_e};
 
 mod utils;
 use utils::build_evaluations;
@@ -14,27 +14,30 @@ use utils::build_evaluations;
 type Blake3 = Blake3_256<BaseElement>;
 
 
-pub fn fold_and_batch_worker(c: &mut Criterion) {
+pub fn distributed_worker(c: &mut Criterion) {
 
-    let mut folding_group = c.benchmark_group("folding prover");
+    let mut folding_group = c.benchmark_group("distributed worker");
     folding_group.sample_size(10);
+    let fri_mode = parse_fri_mode();
 
-    for circuit_size_e in CIRCUIT_SIZES_E {
-        for num_poly_e in NUM_POLY_E {
+    for circuit_size_e in parse_circuit_size_e() {
+        for num_poly_e in parse_num_poly_e() {
 
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
 
-            // let last_poly_max_degree = worker_degree_bound - 1;          // parameter for Distributed Batched FRI
-            let last_poly_max_degree = worker_degree_bound / 4 - 1;   // parameter for Fold-and-Batch
+            let last_poly_max_degree = match fri_mode {
+                FriMode::FoldAndBatch => worker_degree_bound / 4 - 1,
+                FriMode::DistributedBatchedFri => worker_degree_bound - 1,
+            };
 
             let worker_domain_size = worker_degree_bound * BLOWUP_FACTOR;
             let options = FoldingOptions::new(
-                BLOWUP_FACTOR, 
-                FOLDING_FACTOR, 
-                worker_domain_size, 
+                BLOWUP_FACTOR,
+                FOLDING_FACTOR,
+                worker_domain_size,
                 last_poly_max_degree);
 
-            // Prepare the query positions. For simplicity, we draw some random integers 
+            // Prepare the query positions. For simplicity, we draw some random integers
             // instead of using Fiat-Shamir.
             let mut public_coin = DefaultRandomCoin::<Blake3>::new(&[]);
             let query_positions = public_coin
@@ -45,7 +48,11 @@ pub fn fold_and_batch_worker(c: &mut Criterion) {
             let evaluations = build_evaluations(worker_domain_size, BLOWUP_FACTOR);
 
             folding_group.bench_function(
-                BenchmarkId::new("fold_and_batch_worker", format!("circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)),
+                BenchmarkId::new(
+                    match fri_mode {
+                    FriMode::FoldAndBatch => "fold_and_batch_worker",
+                    FriMode::DistributedBatchedFri => "distributed_batched_fri_worker",
+                }, format!("circuit_e_{}_machine_e_{}", circuit_size_e, num_poly_e)),
                 |b| {
                     b.iter_batched(
                         || {
@@ -62,10 +69,9 @@ pub fn fold_and_batch_worker(c: &mut Criterion) {
                     );
                 },
             );
-        }   
+        }
     }
 }
 
-criterion_group!(folding_prover_group, fold_and_batch_worker);
-criterion_main!(folding_prover_group);
-
+criterion_group!(bench_worker, distributed_worker);
+criterion_main!(bench_worker);
