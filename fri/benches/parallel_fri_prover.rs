@@ -5,7 +5,7 @@ use winter_fri::{DefaultProverChannel, FriOptions, FriProver};
 use std::hint::black_box;
 
 mod config;
-use config::{BLOWUP_FACTOR, CIRCUIT_SIZES_E, FOLDING_FACTOR, NUM_POLY_E, NUM_QUERIES};
+use config::{BLOWUP_FACTOR, FOLDING_FACTOR, NUM_QUERIES, parse_circuit_size_e, parse_num_poly_e};
 
 mod utils;
 use utils::build_evaluations;
@@ -17,8 +17,8 @@ pub fn parallel_fri_prover(c: &mut Criterion) {
     let mut folding_group = c.benchmark_group("parallel fri prover");
     folding_group.sample_size(10);
 
-    for circuit_size_e in CIRCUIT_SIZES_E {
-        for num_poly_e in NUM_POLY_E {
+    for circuit_size_e in parse_circuit_size_e() {
+        for num_poly_e in parse_num_poly_e() {
 
             let worker_degree_bound : usize = 1 << (circuit_size_e - num_poly_e);
             let max_remainder_degree = 0;
@@ -49,7 +49,7 @@ pub fn parallel_fri_prover(c: &mut Criterion) {
                     );
                 },
             );
-        }   
+        }
     }
 }
 

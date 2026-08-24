@@ -16,7 +16,7 @@ pub fn build_evaluations(domain_size: usize, lde_blowup: usize) -> Vec<QuadExten
 
 
 pub fn build_evaluations_from_random_poly(degree_bound: usize, lde_blowup: usize) -> Vec<QuadExtension<BaseElement>> {
-    // Generates a random vector which represents the coefficients of a random polynomial 
+    // Generates a random vector which represents the coefficients of a random polynomial
     // with degree < degree_bound
     let mut p = rand_vector::<QuadExtension<BaseElement>>(degree_bound);
 

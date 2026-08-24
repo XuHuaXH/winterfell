@@ -25,7 +25,7 @@ fn run_single_fri_prover(circuit_size_e: usize, num_poly_e: usize) {
     let mut evaluations = Vec::with_capacity(evaluations_size);
 
     for _ in 0..evaluations_size {
-        let mut buf = [0u8; 32]; 
+        let mut buf = [0u8; 32];
         file.read_exact(&mut buf).unwrap();
         let mut reader = SliceReader::new(&buf);
         let element = QuadExtension::<BaseElement>::read_from(&mut reader).unwrap();
@@ -44,7 +44,7 @@ fn run_single_fri_prover(circuit_size_e: usize, num_poly_e: usize) {
     prover.build_layers(&mut channel, evaluations.clone());
     let positions = channel.draw_query_positions(0);
     let _ = prover.build_proof(&positions);
-    
+
     // Comptute the evaluations of this prover's local polynomial at all the query positions.
     let _ = positions.iter().map(|&p| evaluations[p]).collect::<Vec<_>>();
 
