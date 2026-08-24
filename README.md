@@ -7,6 +7,11 @@
 <img src="https://img.shields.io/badge/verifier-rustc_1.84+-lightgray.svg">
 <a href="https://crates.io/crates/winterfell"><img src="https://img.shields.io/crates/v/winterfell"></a>
 
+> [!NOTE]
+> This is a fork of [facebook/winterfell](https://github.com/facebook/winterfell) serving as the research artifact for the paper
+> **[FRIttata: A FRI-based Polynomial Commitment Scheme for Distributed Proof Generation](https://doi.org/10.62056/akjby76bm)** (IACR Communications in Cryptology, 2026).
+> The FRIttata implementation and benchmarks are in the [`fri`](fri) crate. See **[FRITTATA.md](FRITTATA.md)** for a guide.
+
 A STARK prover and verifier for arbitrary computations.
 
 **WARNING:** This is a research project. It has not been audited and may contain bugs and security flaws. This implementation is NOT ready for production use.

@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the FRIttata paper (see preferred-citation)."
+title: "FRIttata artifact (fork of winterfell)"
+repository-code: "https://github.com/XuHuaXH/winterfell"
+license: MIT
+authors:
+  - family-names: "Xu"
+    given-names: "Hua"
+  - family-names: "Gama"
+    given-names: "Mariana"
+  - family-names: "Heydari Beni"
+    given-names: "Emad"
+  - family-names: "Kang"
+    given-names: "Jiayi"
+preferred-citation:
+  type: article
+  title: "FRIttata: A FRI-based Polynomial Commitment Scheme for Distributed Proof Generation"
+  year: 2026
+  journal: "IACR Communications in Cryptology"
+  volume: 2
+  issue: 4
+  doi: "10.62056/akjby76bm"
+  url: "https://cic.iacr.org/p/2/4/26"
+  authors:
+    - family-names: "Xu"
+      given-names: "Hua"
+    - family-names: "Gama"
+      given-names: "Mariana"
+    - family-names: "Heydari Beni"
+      given-names: "Emad"
+    - family-names: "Kang"
+      given-names: "Jiayi"
